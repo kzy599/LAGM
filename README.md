@@ -8,9 +8,11 @@ This repository contains the code used in the unpublished manuscript:
 To reproduce the results from the study:
 
 1. **Directory Setup**  
+
    Ensure all R and Python scripts are placed in the **same directory**.
 
-2. **Main Script Execution**  
+3. **Main Script Execution**  
+
    Run the R script:
 
    ```Shell
@@ -18,10 +20,12 @@ To reproduce the results from the study:
    ```
    This will generate all the outputs used in the paper
 
-3. **GAS Implementation**
+4. **GAS Implementation**
+
    The core implementation of the Generation-Adaptive Selection (GAS) algorithm is located in the Python script `optMatingP.py`.
    
-4. **Dependencies**
+5. **Dependencies**
+
    Before running any scripts, make sure all required libraries for both R `utils.r` and Python `utils.py` are installed correctly.
 
 ## Contact
