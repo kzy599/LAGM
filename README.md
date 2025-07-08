@@ -15,7 +15,8 @@ To reproduce the results from the study:
 
    ```Shell
    Rscript main.r
-  This will generate all the outputs used in the paper
+   ```
+   This will generate all the outputs used in the paper
 
 3. **GAS Implementation**
    The core implementation of the Generation-Adaptive Selection (GAS) algorithm is located in the Python script `optMatingP.py`.
