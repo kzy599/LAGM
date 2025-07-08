@@ -18,7 +18,7 @@ To reproduce the results from the study:
    ```Shell
    Rscript main.r
    ```
-   This will generate all the outputs used in the paper.This will generate all outputs used in the paper. The raw genomic data must be manually downloaded from NCBI. The preprocessing code for preparing the raw sequence data before inputting it into the simulation can be found in the MNNDR repository
+   This will generate all the outputs used in the paper.This will generate all outputs used in the paper. The raw genomic data must be manually downloaded from NCBI. The preprocessing code for preparing the raw sequence data before inputting it into the simulation can be found in the MNNDR repository.
 
 4. **GAS Implementation**
 
