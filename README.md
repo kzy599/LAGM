@@ -22,7 +22,7 @@ To reproduce the results from the study:
 
 4. **GAS Implementation**
 
-   The core implementation of the Generation-Adaptive Selection (GAS) algorithm is located in the Python script `optMatingP.py`.
+   The core implementation of the Generation-Adaptive Selection (GAS) algorithm is located in the Python script `optMatingP.py`. Note: The default parameters`female_num=50, male_num=25, female_mates=1, male_mates=2` in `setup_deap_gain` are tailored to this program. You may adjust them manually to suit your specific settings, as they define the number of males and females and their respective mating counts.
    
 5. **Dependencies**
 
