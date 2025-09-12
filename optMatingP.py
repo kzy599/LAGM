@@ -228,9 +228,16 @@ def genetic_gain(breeding_pairs, ebv_vector, id_to_index, geno_matrix, gen, He):
     avg_he = total_he / len(breeding_pairs)
     
     # 6. 计算多样性衰减
-    decay_factor = (avg_he / He)**gen
+
+    # decay_factor = (avg_he / He)**gen
     
-    return avg_gain * decay_factor
+    # return avg_gain * decay_factor
+
+    eps = 1e-12
+    ratio = max(avg_he / He, eps)
+    gain_pos = max(avg_gain, eps)
+    
+    return np.log(gain_pos) + gen * np.log(ratio)
 
 def setup_deap_gain(female_ids, male_ids,id_to_index,ebv_vector,geno_matrix, gen, He,female_num=50, male_num=25, female_mates=1, male_mates=2):
     """
