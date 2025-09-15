@@ -223,22 +223,20 @@ def genetic_gain(breeding_pairs, ebv_vector, id_to_index, geno_matrix, gen, He,A
         
         # 4. 计算杂合率分量
         Cfm = A_matrix[female_idx,male_idx] / 2
-        deltaC = 1 - (1 - Cfm)**(1 / gen_pre)
-
-        total_deltaC += deltaC
+        
+        total_C += Cfm
     
     # 5. 计算平均增益和杂合率
     avg_gain = total_gain / len(breeding_pairs)
-    avg_deltaC = total_deltaC / len(breeding_pairs)
+    avg_C = total_C / len(breeding_pairs)
     
     # 6. 计算多样性衰减
-    # decay_factor = (1-avg_deltaC)**gen
-    
-    # return avg_gain * decay_factor
+    deltaC = 1 - (1 - avg_C)**(1 / gen_pre)
+    # decay_factor = (1-deltaC)**gen
 
     eps = 1e-12
     gain_pos = max(avg_gain, eps)
-    ratio = max((1-avg_deltaC),eps)
+    ratio = max((1-deltaC),eps)
     
     return np.log(gain_pos) + gen * np.log(ratio)
     
