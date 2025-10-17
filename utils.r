@@ -447,6 +447,8 @@ makeEBV <- function(pop){
 
     pop = mergePops(pop_list)
 
+    pop@ebv[,1] = pop@ebv[,1] - mean(pop@ebv[,1])
+
     return(pop)
 }
 
@@ -479,4 +481,9 @@ calAmatrix = function(ped,keep){
   AA<-Amatrix[tempBool_row,tempBool_col]
   
   return(AA)
+}
+
+calres = function(gen,Interval){
+  if(gen%%Interval!=0) resGen = Interval - gen%%Interval + 1 else resGen = 1
+  return(resGen)
 }
