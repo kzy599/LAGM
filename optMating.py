@@ -197,17 +197,14 @@ def normalize(value, min_value, max_value):
     return (value - min_value) / (max_value - min_value + 1e-8)
 
 
-def genetic_gain(breeding_pairs, ebv_vector, id_to_index, geno_matrix, gen, He,A_matrix,gen_pre):
+def genetic_gain(breeding_pairs, ebv_vector, id_to_index, gen, A_matrix,gen_pre,mG,mD,Gmax,Gmin,Dmax,Dmin):
     # 1. 输入验证
     if not breeding_pairs:
         return 0.0
-    if He <= 0:
-        raise ValueError("Initial heterozygosity (He) must be positive")
-    if geno_matrix.shape[0] != len(ebv_vector):
-        raise ValueError("geno_matrix rows must match ebv_vector length")
     
     total_gain = 0.0
-    total_deltaC = 0.0
+    total_he = 0.0
+    # total_C = 0.0
     
     # 2. 遍历所有配对
     for female, male in breeding_pairs:
@@ -223,25 +220,27 @@ def genetic_gain(breeding_pairs, ebv_vector, id_to_index, geno_matrix, gen, He,A
         
         # 4. 计算杂合率分量
         Cfm = A_matrix[female_idx,male_idx] / 2
-        
-        total_C += Cfm
-    
+        total_he += 1-Cfm
+
     # 5. 计算平均增益和杂合率
     avg_gain = total_gain / len(breeding_pairs)
-    avg_C = total_C / len(breeding_pairs)
+    avg_he = total_he / len(breeding_pairs)
     
     # 6. 计算多样性衰减
-    deltaC = 1 - (1 - avg_C)**(1 / gen_pre)
-    # decay_factor = (1-deltaC)**gen
 
     eps = 1e-12
-    gain_pos = max(avg_gain, eps)
-    ratio = max((1-deltaC),eps)
-    
-    return np.log(gain_pos) + gen * np.log(ratio)
-    
+    if mG and not mD:
+        return avg_gain
+    elif (not mG) and mD:
+        ratio = max(avg_he, eps)
+        return gen * np.log(ratio)
+    else:
+        ratio_D = max(((avg_he**gen) -(Dmin**gen))/((Dmax**gen) -(Dmin**gen)) , eps)
+        ratio_G = max((avg_gain - Gmin)/(Gmax - Gmin) , eps)
+        return np.log(ratio_G) + gen * np.log(ratio_D)
 
-def setup_deap_gain(female_ids, male_ids,id_to_index,ebv_vector,geno_matrix, gen, He,A_matrix,gen_pre,female_num=50, male_num=25, female_mates=1, male_mates=2):
+
+def setup_deap_gain(female_ids, male_ids,id_to_index,ebv_vector, gen, A_matrix,gen_pre,mG,mD,Gmax,Gmin,Dmax,Dmin,female_num=50, male_num=25, female_mates=1, male_mates=2):
     """
     Sets up DEAP for the genetic algorithm.
     """
@@ -278,7 +277,7 @@ def setup_deap_gain(female_ids, male_ids,id_to_index,ebv_vector,geno_matrix, gen
         """
         Evaluate an individual based on genetic gain and genetic diversity.
         """
-        gain = genetic_gain(individual,ebv_vector, id_to_index,geno_matrix, gen, He,A_matrix,gen_pre)
+        gain = genetic_gain(individual,ebv_vector, id_to_index, gen, A_matrix,gen_pre,mG,mD,Gmax,Gmin,Dmax,Dmin)
         return gain,
 
     toolbox.register("evaluate", evaluate)
@@ -394,6 +393,36 @@ def save_breeding_pairs(breeding_pairs, output_path):
         json.dump({"breeding_pairs": breeding_pairs_list}, f, ensure_ascii=False, indent=4)
     print(f"Breeding pairs have been saved to {output_path}")
 
+
+def cal_GD_breeding_pairs(breeding_pairs, ebv_vector, id_to_index, A_matrix):
+    # 1. 输入验证
+    if not breeding_pairs:
+        return 0.0
+    
+    total_gain = 0.0
+    total_he = 0.0
+    
+    # 2. 遍历所有配对
+    for female, male in breeding_pairs:
+        try:
+            female_idx = id_to_index[female]
+            male_idx = id_to_index[male]
+        except KeyError as e:
+            raise ValueError(f"ID {e} not found in id_to_index") from e
+        
+        # 3. 计算遗传增益分量
+        pair_gain = (ebv_vector[female_idx] + ebv_vector[male_idx]) / 2
+        total_gain += pair_gain
+        
+        Cfm = A_matrix[female_idx,male_idx] / 2
+        total_he += 1-Cfm
+    
+    # 5. 计算平均增益和杂合率
+    avg_gain = total_gain / len(breeding_pairs)
+    avg_he = total_he / len(breeding_pairs)
+
+    return avg_gain,avg_he
+
 def train_actor_critic(
     individual_ids,
     ebv_vector,
@@ -433,7 +462,41 @@ def train_actor_critic(
     stats.register("min", np.min)
     stats.register("max", np.max)
 
-    toolbox_gain = setup_deap_gain(female_ids, male_ids, id_to_index,ebv_vector,geno_matrix, gen, He,A_matrix,gen_pre)
+
+    toolbox_gain_mG = setup_deap_gain(female_ids, male_ids, id_to_index,ebv_vector, gen, A_matrix,gen_pre,mG=True,mD=False,Gmax=1,Gmin=0,Dmax=1,Dmin=0)
+    
+    population = toolbox_gain_mG.population(n=100)
+    
+    population, log = custom_ga(
+    population, toolbox_gain_mG,
+    cxpb=0.5, mutpb=0.2, ngen=1000,
+    convergence_window=10,stats=stats, convergence_eps=1e-5
+    )
+    # results,log = algorithms.eaSimple(population, toolbox_gain, cxpb=0.5, mutpb=0.2, ngen=50, stats = stats,verbose=True)
+
+    mG_breeding_pairs = max(population, key=lambda ind: ind.fitness.values[0])
+
+    Gmax,Dmin = cal_GD_breeding_pairs(mG_breeding_pairs, ebv_vector, id_to_index, A_matrix)
+
+
+    toolbox_gain_mD = setup_deap_gain(female_ids, male_ids, id_to_index,ebv_vector, gen, A_matrix,gen_pre,mG=False,mD=True,Gmax=1,Gmin=0,Dmax=1,Dmin=0)
+    
+    population = toolbox_gain_mD.population(n=100)
+    
+    population, log = custom_ga(
+    population, toolbox_gain_mD,
+    cxpb=0.5, mutpb=0.2, ngen=1000,
+    convergence_window=10,stats=stats, convergence_eps=1e-5
+    )
+    # results,log = algorithms.eaSimple(population, toolbox_gain, cxpb=0.5, mutpb=0.2, ngen=50, stats = stats,verbose=True)
+
+    mD_breeding_pairs = max(population, key=lambda ind: ind.fitness.values[0])
+
+    Gmin,Dmax = cal_GD_breeding_pairs(mD_breeding_pairs, ebv_vector, id_to_index, A_matrix)
+
+
+
+    toolbox_gain = setup_deap_gain(female_ids, male_ids, id_to_index,ebv_vector, gen, A_matrix,gen_pre,mG=False,mD=False,Gmax=Gmax,Gmin=Gmin,Dmax=Dmax,Dmin=Dmin)
     
     population = toolbox_gain.population(n=100)
     
@@ -469,8 +532,7 @@ def main():
 
     # Load input data
     individual_ids, ebv_vector, kinship_matrix, female_ids, male_ids, geno_matrix,gen,He,A_matrix,gen_pre = load_input_data(args.input_file)
-    if He is None:
-        He = calHe(geno_arr=geno_matrix)
+    
     # Train the actor-critic networks and get the final breeding pairs
     final_breeding_pairs = train_actor_critic(
         individual_ids,
