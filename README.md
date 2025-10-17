@@ -1,7 +1,8 @@
-# Generation-Adaptive Selection for Balancing Genetic Gain and Diversity in Family-Based Aquaculture Breeding Programs
+# LAGM: Look-ahead genomic mating
+
 
 This repository contains the code used in the unpublished manuscript:  
-**"Generation-Adaptive Selection for the Balance Between Genetic Gain and Diversity in Family-Based Aquaculture Breeding Programs."**
+**"Look-ahead genomic mating for optimizing the tradeoff between genetic gain and diversity on family-based aquaculture breeding program"**
 
 ## 📁 Project Structure
 
@@ -17,12 +18,13 @@ To reproduce the results from the study:
 
    ```Shell
    Rscript main.r
+   Rscript main_bp.r
    ```
    This will generate all the outputs used in the paper.This will generate all outputs used in the paper. The raw genomic data must be manually downloaded from NCBI. The preprocessing code for preparing the raw sequence data before inputting it into the simulation can be found in the MNNDR repository.
 
-4. **GAS Implementation**
+4. **LAGM Implementation**
 
-   The core implementation of the Generation-Adaptive Selection (GAS) algorithm is located in the Python script `optMatingP.py`. Note: The default parameters `female_num=50, male_num=25, female_mates=1, male_mates=2` in `setup_deap_gain` are tailored to this program. You may adjust them manually to suit your specific settings, as they define the number of males and females and their respective mating counts. The order of individual IDs must be the same for both the EBV vector and the kinship matrix.
+   The core implementation of the LAGM is located in the Python script `optMatingP.py`. Note: The default parameters `female_num=50, male_num=25, female_mates=1, male_mates=2` in `setup_deap_gain` are tailored to this program. You may adjust them manually to suit your specific settings, as they define the number of males and females and their respective mating counts. The order of individual IDs must be the same for both the EBV vector and the kinship matrix.
    
 5. **Dependencies**
 
