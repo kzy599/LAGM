@@ -350,7 +350,7 @@ Gpoint[1] = 1
 c("LAGM1","LAGM2","LAGM3","LAGM5","LAGM7","OCS45","OCS25")
 c("LAGM2","LAGM7","OCS45","OCS65")#figure 8
 c("LAGM1","LAGM3","LAGM5","OCSrate","OCS25","OCS90")#figure s5
-P<- ggplot(data = ck_dt_line[type%in%c("Gain","Inbreeding")&app%in%c("LAGM2","LAGM7","OCS45","OCS65"),],aes(x=gen,y=value,group = app, color = app))+
+P<- ggplot(data = ck_dt_line[type%in%c("Gain","Inbreeding")&app%in%c("LAGM1","LAGM3","LAGM5","OCSrate","OCS25","OCS90"),],aes(x=gen,y=value,group = app, color = app))+
   geom_point()+
   geom_line()+
   #scale_shape_manual(values = c(0,3,15,1),na.translate=FALSE)+
@@ -362,7 +362,7 @@ P<- ggplot(data = ck_dt_line[type%in%c("Gain","Inbreeding")&app%in%c("LAGM2","LA
   geom_errorbar(aes(ymin=value-valuese,
                     ymax=value+valuese),
                 width=0.05,alpha = 0.5)+labs(color="Mat")+scale_color_lancet()+scale_x_continuous(limits = c(1,nG),breaks = Gpoint) + facet_wrap(~type, scales = "free")+
-ggtitle("Genetic gain and Inbreeding across 20 generations") +
+ggtitle("Breeding program without a defined horizon") +
   theme(
     plot.title = element_text(
       size = 20,          # 大字号
@@ -375,7 +375,7 @@ ggtitle("Genetic gain and Inbreeding across 20 generations") +
     # 调整y轴标签字体
     axis.title.y = element_text(size = 16, face = "bold", color = "black")
   )
-ggsave("Figure 8.pdf", P , width = 15, height = 6, dpi = 300)
+ggsave("Figure S5.pdf", P , width = 15, height = 6, dpi = 300)
 
 
 
