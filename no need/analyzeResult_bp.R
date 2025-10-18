@@ -348,7 +348,9 @@ nG = 20
 Gpoint = seq(0,nG,5)
 Gpoint[1] = 1
 c("LAGM1","LAGM2","LAGM3","LAGM5","LAGM7","OCS45","OCS25")
-P<- ggplot(data = ck_dt_line[type%in%c("Gain","Inbreeding")&app%in%c("LAGM2","LAGM7","OCS45","OCS65"),],aes(x=gen,y=value,group = app, color = app))+
+c("LAGM2","LAGM7","OCS45","OCS65")
+c("LAGM1","LAGM3","LAGM5","OCSrate","OCS25","OCS90")
+P<- ggplot(data = ck_dt_line[type%in%c("Gain","Inbreeding")&app%in%c("LAGM1","LAGM3","LAGM5","OCSrate","OCS25","OCS90"),],aes(x=gen,y=value,group = app, color = app))+
   geom_point()+
   geom_line()+
   #scale_shape_manual(values = c(0,3,15,1),na.translate=FALSE)+
@@ -373,7 +375,7 @@ ggtitle("Genetic gain and Inbreeding across 20 generations") +
     # 调整y轴标签字体
     axis.title.y = element_text(size = 16, face = "bold", color = "black")
   )
-ggsave("Figrue_gain_inbreeding_line_27.pdf", P , width = 15, height = 6, dpi = 300)
+ggsave("Figure S5.pdf", P , width = 15, height = 6, dpi = 300)
 
 
 
