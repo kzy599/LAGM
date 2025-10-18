@@ -206,7 +206,7 @@ P<- ggplot(data = zt1,aes(x=gen,y=value,group = app, color = app))+
   #scale_x_continuous(limits = c(0,20),breaks = seq(0,20,1))+labs(fill="Breeding scheme")
   geom_errorbar(aes(ymin=value-valuese,
                     ymax=value+valuese),
-                width=0.05,alpha = 0.5)+labs(color="Mat")+scale_color_lancet()+scale_x_continuous(limits = c(1,nG),breaks = c(1,5,10,15,20)) + facet_wrap(~type, scales = "free")+
+                width=0.05,alpha = 0.5)+labs(color="Mat")+scale_color_lancet()+scale_x_continuous(limits = c(1,nG),breaks = Gpoint) + facet_wrap(~type, scales = "free")+
 ggtitle(paste(nG,"-generation breeding program",sep = "")) +
   theme(
     plot.title = element_text(
