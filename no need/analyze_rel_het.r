@@ -285,6 +285,7 @@ ck_dt_line = plotDT(pv = c("gg0","inb_ped","Ne","inbEff_ped","inbEff_ped_5","inb
 ck_dt = DT_test(rep_out,Vtype = unique(ck_dt_line$type),gen = gen , ck_dt = ck_dt_line[gen%in%c(5,10,15,20),])
 
 ck_dt = rename_dt(ck_dt)
+ck_dt[gen == 20&type=="Efficiency",]
 
 y_lab_name = "Efficiency"#efficiency_interval meaningless
 
