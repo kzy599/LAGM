@@ -119,6 +119,11 @@ extractMeanSd = function(dt){
   return(result)
 }
 
+bp_h = c(5,10,15,20)
+dir = paste("/home/kangziyi/RLmating/Gen",bp_h,sep = "")
+for(d in dir){
+setwd(d)
+nG = bp_h[which(dir==d)]
 for(r in 1:20){
 output = fread(paste("output",r,".csv",sep = ""),sep = ",")
 
@@ -152,88 +157,12 @@ if(r == 1){
 }
 
 results = extractMeanSd(rep_out)
-nG = 20
 
-para = "inbrate"
-para = "inb"
-para = "inb_ped"
-para = "genicEff"
-para = "gg0"
-para = "inbEff_ped"
-para = "inbEff"
-nG = 5
-app_x = "rl2"
-app_y = "tc"
-t.test(x = rep_out[app ==app_x&gen ==nG,..para],y = rep_out[app ==app_y&gen ==nG,..para])
-calpercent(x = results[app == app_x&gen == nG,..para],y = results[app == app_y&gen == nG, ..para])
-calpercent(x = results[app == app_y&gen == nG,..para],y = results[app == app_x&gen == nG, ..para])
-
-ck = results[gen == nG,.(app,inb,gg0,genicEff,inbrate,inbrate_ped,genicVa,inb_ped,inbEff,inbEff_ped)]
-setorder(ck,gg0)
-ck
-setorder(ck,inbEff_ped)
-ck
-anova_model<- aov(inb~app+gen,data = rep_out )
-anova_model<- aov(inbEff_ped~app,data = rep_out[gen == nG,])
-summary(anova_model)
-tukey_results <- TukeyHSD(anova_model,"app",conf.level = 0.95)
-tukey_results_dt <- as.data.table(tukey_results$app, keep.rownames = "comparison")
-colnames(tukey_results_dt)[5] = "pvalue"
-tukey_results_dt[pvalue<=0.05&comparison%flike%"rl2",]
-tukey_results_dt[pvalue<=0.05&comparison%flike%"ocs",]
-tukey_results_dt[pvalue<=0.05,]
-
-# fitmodel = lm(log(inb) ~ gen, data=rep_out[app == "ocs",])
-# (exp(coef(fitmodel)[2])-1)*100
-
-fitmodel = lm(gg0 ~ gen, data=rep_out[app == "ocs25",])
-coef(fitmodel)[2]
-summary(fitmodel)
-
-pv = "genicEff"
-pvse = "genicEff_sd"
-zt1 = results[gen == nG,]
-zt1$value = zt1[,..pv]
-zt1$valuese = zt1[,..pvse]
-P <- ggplot(data = zt1, aes(x = app, y = value, group = app, fill = app)) +
-  geom_bar(stat = "identity", position = position_dodge(width = 0.9),width = 0.9) +  # 确保条形图分组不重叠
-  geom_text(aes(label = round(value,2)), position = position_dodge(width = 0.9),vjust = -4, size = 4) +  # 添加数值标签
-  xlab("Mating strategies") +
-  ylab("Efficiency") +
-  theme_zg() +
-  theme(legend.position ="right", legend.title = element_blank()) +
-  geom_errorbar(aes(ymin = value - valuese, ymax = value + valuese),
-                position = position_dodge(width = 0.9),  # 与条形图对齐
-                width = 0.2, alpha = 0.5) +
-  labs(fill = "Mat") +
-  scale_fill_aaas()
-
-ggsave("Figrue_genicEff_bar.pdf", P , width = 15, height = 8, dpi = 300)
-
-
-pv = "gg0"
-pvse = "gg0_sd"
-zt1 = results
-zt1$value = zt1[,..pv]
-zt1$valuese = zt1[,..pvse]
-P<- ggplot(data = zt1,aes(x=gen,y=value,group = app, color = app))+
-  geom_point()+
-  geom_line()+
-  #scale_shape_manual(values = c(0,3,15,1),na.translate=FALSE)+
-  xlab("Generation")+
-  ylab("Genetic gain")+
-  theme_zg()+theme(legend.title=element_blank())+
-  #geom_ribbon(aes(ymin = value -valuese, ymax = value+valuese), alpha = 0.4)+labs(fill="Mat")+scale_fill_aaas()
-  #scale_x_continuous(limits = c(0,20),breaks = seq(0,20,1))+labs(fill="Breeding scheme")
-  geom_errorbar(aes(ymin=value-valuese,
-                    ymax=value+valuese),
-                width=0.05,alpha = 0.5)+labs(color="Mat")+scale_color_aaas()+scale_x_continuous(limits = c(1,nG),breaks = seq(1,nG,4))
-ggsave("Figrue_gg_line.pdf", P , width = 15, height = 6, dpi = 300)
-
+# plot line across generations for various breeding horizons
 
 rename_dt = function(zt1){
 zt1 = zt1[app!="rl",]
-zt1[app=="rl2",app:="GAS"]
+zt1[app=="rl2",app:="LAGM"]
 zt1[app=="tc",app:="TC"]
 zt1[app=="ocs25",app:="OCS25"]
 zt1[app=="ocs45",app:="OCS45"]
@@ -247,96 +176,6 @@ zt1[type=="inbEff_ped",type:="Efficiency"]
 return(zt1)
 }
 
-plotDT = function(pv,pvse,dt){
-output = data.table()
-for(t in pv){
-  locus = which(pv == t)
-  sd_temp = pvse[locus]
-  output_temp = data.table(app = dt$app,type = t,value =dt[[t]],valuese = dt[[sd_temp]])
-  colnames(output_temp) = c("app","type","value","valuese")
-  output= rbind(output,output_temp)
-}
-return(output)
-}
-
-pv = c("gg0","inb_ped","inbEff_ped")
-pvse = paste(pv,"_sd",sep = "")
-ck_dt = plotDT(pv = c("gg0","inb_ped","inbEff_ped"),pvse = pvse,dt = results[gen ==nG,])
-ck_dt = rename_dt(ck_dt)
-ck_dt$type = factor(ck_dt$type,level = c("Gain","Inbreeding","Efficiency"))
-P <- ggplot(data = ck_dt, aes(x = app, y = value, group = type, fill = type)) +
-  geom_bar(stat = "identity", position = position_dodge(width = 0.9),width = 0.9) +  # 确保条形图分组不重叠
-  geom_text(aes(label = round(value,2)), position = position_dodge(width = 0.9),vjust = -4, size = 4) +  # 添加数值标签
-  xlab("Mating strategies") +
-  ylab("Value") +
-  theme_zg() +
-  theme(legend.position ="right", legend.title = element_blank()) +
-  geom_errorbar(aes(ymin = value - valuese, ymax = value + valuese),
-                position = position_dodge(width = 0.9),  # 与条形图对齐
-                width = 0.2, alpha = 0.5) +
-  labs(fill = "Mat") +scale_fill_aaas()
-
-ggsave("Figrue_bar.pdf", P , width = 15, height = 8, dpi = 300)
-
-
-DT_test = function(rep_out,Vtype,ck_dt){
-output = data.table()
-for(g in Vtype){
-  aov_res <- aov(as.formula(paste(g, "~ app")), data = rep_out)
-  tukey_res <- TukeyHSD(aov_res,conf.level = 0.95)
-  letters <- multcompLetters4(aov_res, tukey_res)
-  output = rbind(output,data.table(app = names(letters$app$Letters),Letter = letters$app$Letters,type = g))
-}
-merged_dt <- merge(output, ck_dt, by = c("app", "type"), all = FALSE)
-return(merged_dt)
-}
-pv = c("gg0","inb_ped","inbEff_ped")
-pvse = paste(pv,"_sd",sep = "")
-ck_dt = plotDT(pv = c("gg0","inb_ped","inbEff_ped"),pvse = pvse,dt = results[gen ==nG,])
-ck_dt = ck_dt[app!="rl",]
-ck_dt= DT_test(rep_out[app!="rl"&gen == nG,],Vtype = unique(ck_dt$type),ck_dt = ck_dt)
-ck_dt = rename_dt(ck_dt)
-ck_dt$type = factor(ck_dt$type,level = c("Gain","Inbreeding","Efficiency"))
-ck_dt[, letter_y_test := value + 1.1 * valuese, by = type]
-# ck_dt_test[, letter_y := value + 1.5 * valuese]
-ck_dt[, letter_y := value + 0.1 * valuese, by = type]
-ck_dt$app = factor(ck_dt$app,level = c("GAS","TC","OCSrate","OCS25","OCS45","OCS65","OCS90","Random"))
-P <- ggplot(data = ck_dt, aes(x = app, y = value, group = app, fill = app)) +
-  geom_bar(stat = "identity", position = position_dodge(width = 0.9),width = 0.9) +  # 确保条形图分组不重叠，position_dodge里的width 要与外面的width相等
-  geom_text(aes(label = round(value,2),y = letter_y), position = position_dodge(width = 0.9),vjust = 0, size = 5) +  # 添加数值标签
-  xlab("Mating strategies") +
-  ylab("Value") +
-  theme_zg() +
-  theme(legend.position ="right", legend.title = element_blank(),
-    #设置分面标题，要在facet_wrap之前用
-     strip.text = element_text(
-      size = 14,           # 字体大小
-      face = "bold",       # 加粗（"plain", "italic", "bold.italic"）
-      color = "black"      # 颜色
-    )) +
-  geom_errorbar(aes(ymin = value - valuese, ymax = value + valuese),
-                position = position_dodge(width = 0.9),  # 与条形图对齐
-                width = 0.2, alpha = 0.5) +
-  labs(fill = "Mat") +scale_fill_lancet()+
-  #添加position = position_dodge(width = 0.9)如果一个x分类内有多个组，要确保组不重叠，width 要与geom_bar里面的width相等
-  geom_text(data = ck_dt, aes(label = Letter, y = letter_y_test), vjust = 0,size = 5) + facet_wrap(~type, scales = "free")+
-  ggtitle("5-generation breeding program") +
-  theme(
-    plot.title = element_text(
-      size = 20,          # 大字号
-      face = "bold",      # 加粗
-      hjust = 0.5,        # 居中
-      color = "black"     # 颜色（可选）
-    ),
-    # 调整x轴标签字体
-    axis.title.x = element_text(size = 16, face = "bold", color = "black"),
-    # 调整y轴标签字体
-    axis.title.y = element_text(size = 16, face = "bold", color = "black")
-  )
-
-ggsave("Figrue_bar.pdf", P , width = 22, height = 10, dpi = 300)
-
-
 plotDT_line = function(pv,pvse,dt){
 output = data.table()
 for(t in pv){
@@ -348,7 +187,9 @@ for(t in pv){
 }
 return(output)
 }
-
+zt1 = results
+Gpoint = seq(0,nG,5)
+Gpoint[1] = 1
 pv = c("gg0","inb_ped")
 pvse = paste(pv,"_sd",sep = "")
 zt1 = plotDT_line(pv = c("gg0","inb_ped"),pvse = pvse,dt = results)
@@ -365,8 +206,8 @@ P<- ggplot(data = zt1,aes(x=gen,y=value,group = app, color = app))+
   #scale_x_continuous(limits = c(0,20),breaks = seq(0,20,1))+labs(fill="Breeding scheme")
   geom_errorbar(aes(ymin=value-valuese,
                     ymax=value+valuese),
-                width=0.05,alpha = 0.5)+labs(color="Mat")+scale_color_lancet()+scale_x_continuous(limits = c(1,nG),breaks = seq(1,nG,4)) + facet_wrap(~type, scales = "free")+
-ggtitle("20-generation breeding program") +
+                width=0.05,alpha = 0.5)+labs(color="Mat")+scale_color_lancet()+scale_x_continuous(limits = c(1,nG),breaks = c(1,5,10,15,20)) + facet_wrap(~type, scales = "free")+
+ggtitle(paste(nG,"-generation breeding program",sep = "")) +
   theme(
     plot.title = element_text(
       size = 20,          # 大字号
@@ -380,8 +221,10 @@ ggtitle("20-generation breeding program") +
     axis.title.y = element_text(size = 16, face = "bold", color = "black")
   )
 ggsave("Figrue_gg_line.pdf", P , width = 15, height = 6, dpi = 300)
+}
 
 
+#plot Bar across mating startegies and horizons
 main_dir = "/home/kangziyi/RLmating/"
 dir = c("Gen5","Gen10","Gen15","Gen20")
 alldir = paste(main_dir,dir,sep = "")
@@ -430,7 +273,7 @@ return(merged_dt)
 }
 rename_dt = function(zt1){
 zt1 = zt1[app!="rl",]
-zt1[app=="rl2",app:="GAS"]
+zt1[app=="rl2",app:="LAGM"]
 zt1[app=="tc",app:="TC"]
 zt1[app=="ocs25",app:="OCS25"]
 zt1[app=="ocs45",app:="OCS45"]
@@ -499,8 +342,17 @@ ck_dt = DT_test(rep_out[app!="rl",],Vtype = unique(ck_dt$type),BP =unique(ck_dt$
 
 ck_dt = rename_dt(ck_dt)
 
-y_lab_name = "Efficiency"
+ck_dt$app = factor(ck_dt$app,level = c("LAGM","TC","OCSrate","OCS25","OCS45","OCS65","OCS90","Random"))
+ck_dt$BP = substr(ck_dt$BP, 1,nchar(ck_dt$BP)-1)
+ck_dt$BP = factor(ck_dt$BP, level = c("5-generation","10-generation","15-generation","20-generation"))
 ck_dt$type = factor(ck_dt$type,level = c("Gain","Inbreeding","Efficiency"))
+
+
+y_lab_name_all = c("Efficiency","Gain","Inbreeding")
+title_name = c("Conversion efficiency", "Genetic gain", "Inbreeding")
+
+for(y_lab_name in y_lab_name_all){
+
 if(y_lab_name == "Gain"){
 ck_dt[, letter_y_test := value + 3 * valuese, by = type]
 ck_dt[, letter_y := value + 1.1 * valuese, by = type]
@@ -511,11 +363,8 @@ ck_dt[app == "TC", letter_y_test := value + 3 * valuese]
 }else{
 ck_dt[, letter_y_test := value + 3 * valuese, by = type]
 ck_dt[, letter_y := value + 1.1 * valuese, by = type]
-ck_dt[app =="GAS"&BP == "5-generations", letter_y_test := value + 2 * valuese, by = type]
+ck_dt[app =="LAGM"&BP == "5-generation", letter_y_test := value + 2 * valuese, by = type]
 }
-ck_dt$app = factor(ck_dt$app,level = c("GAS","TC","OCSrate","OCS25","OCS45","OCS65","OCS90","Random"))
-ck_dt$BP = substr(ck_dt$BP, 1,nchar(ck_dt$BP)-1)
-ck_dt$BP = factor(ck_dt$BP, level = c("5-generation","10-generation","15-generation","20-generation"))
 P <- ggplot(data = ck_dt[type == y_lab_name,], aes(x = app, y = value, group = app, fill = app)) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.9),width = 0.9) +  # 确保条形图分组不重叠，position_dodge里的width 要与外面的width相等
   geom_text(aes(label = round(value,2),y = letter_y), position = position_dodge(width = 0.9),vjust = 0, size = 5) +  # 添加数值标签
@@ -535,7 +384,7 @@ P <- ggplot(data = ck_dt[type == y_lab_name,], aes(x = app, y = value, group = a
   labs(fill = "Mat") +scale_fill_lancet()+
   #添加position = position_dodge(width = 0.9)如果一个x分类内有多个组，要确保组不重叠，width 要与geom_bar里面的width相等
   geom_text(data = ck_dt[type == y_lab_name,], aes(label = Letter, y = letter_y_test), vjust = 0,size = 5) + facet_wrap(~BP, scales = "free_x")+
-  ggtitle("Conversion efficiency across breeding programs") +
+  ggtitle(paste(title_name[which(y_lab_name_all == y_lab_name)],"across mating strategies and horizons",sep = " ")) +
   theme(
     plot.title = element_text(
       size = 20,          # 大字号
@@ -551,35 +400,35 @@ P <- ggplot(data = ck_dt[type == y_lab_name,], aes(x = app, y = value, group = a
 
 ggsave(paste("Figrue_bar_",y_lab_name,".pdf",sep = ""), P , width = 22, height = 10, dpi = 300)
 
+}
 
-
-y_lab_name = "Gain"
-dt = dt1[type==y_lab_name,.(app,BP,value,valuese)]
+# y_lab_name = "Gain"
+# dt = dt1[type==y_lab_name,.(app,BP,value,valuese)]
 # dt[, col_id := paste(type, dataset, sep = "_")]
-dt[, value_display := sprintf("%.2f ± %.2f", value, valuese)]
+ck_dt[, value_display := sprintf("%.2f ± %.2f", value, valuese)]
 
-wide_dt <- dcast(dt, MODE ~ BP, value.var = "value_display")
-
-# ordered_cols = c("MODE")
-# for(i in c("ST","MT_continuous","MT_binary")){
-#    ordered_cols = c(ordered_cols,paste(i,c("Linear-A","Low-ADE","Med-ADE","Hig-ADE"),sep = '_'))
-# }
-ordered_cols = c("app","5-generations","10-generations","15-generations","20-generations")
-
+wide_dt <- dcast(ck_dt, app ~ type+BP, value.var = "value_display")
+# ordered_cols = c("app","5-generation","10-generation","15-generation","20-generation")
+ordered_cols = c("app")
+for(i in c("Gain","Inbreeding","Efficiency")){
+   ordered_cols = c(ordered_cols,paste(i,c("5-generation","10-generation","15-generation","20-generation"),sep = '_'))
+}
 wide_dt <- wide_dt[, ..ordered_cols]
-colnames(wide_dt)[1] = "Mating_strategies" 
+colnames(wide_dt)[1] = "Mating strategies" 
+ordered_cols[1] = "Mating strategies" 
 # Adjust header map accordingly
-# header_map <- data.frame(
-#   col_keys = ordered_cols,
-#   Type = c("Model", rep(c("ST", "MT_continuous", "MT_binary"), each = 4)),
-#   Datasets = c(" ", rep(c("Linear-A","Low-ADE","Med-ADE","Hig-ADE"), 3)),
-#   stringsAsFactors = FALSE
-# )
-
+header_map <- data.frame(
+  col_keys = ordered_cols,
+  Type = c("Mating_strategies", rep(c("Gain","Inbreeding","Efficiency"), each = 4)),
+  Horizons = c(" ", rep(c("5-generation","10-generation","15-generation","20-generation"), 3)),
+  stringsAsFactors = FALSE
+)
+library(flextable)
+library(officer)
 ft <- flextable(wide_dt)
-# ft <- set_header_df(ft, mapping = header_map, key = "col_keys")
-# ft <- merge_h(ft, part = "header")  # merge group headers
-# ft <- merge_v(ft, j = "MODE", part = "body")  # optional: merge MODE column
+ft <- set_header_df(ft, mapping = header_map, key = "col_keys")
+ft <- merge_h(ft, part = "header")  # merge group headers
+ft <- merge_v(ft, j = "Mating strategies", part = "body")  # optional: merge MODE column
 ft <- theme_booktabs(ft)
 ft <- autofit(ft)
 ft <- fontsize(ft, size = 9, part = "all")        # smaller font
@@ -587,10 +436,8 @@ ft <- width(ft, width = 0.5)
 
 save_as_html(ft, path = "strategies.html")
 
-library(officer)
-
 doc <- read_docx() |> 
-  body_add_par(paste(y_lab_name,"accuracy across models and simulated datasets",sep = " "), style = "heading 1") |> 
+  body_add_par(paste("Gain, inbreeding and efficiency across strategies and horizons",sep = " "), style = "heading 1") |> 
   body_add_flextable(ft)
 
 print(doc, target = "strategies.docx")
