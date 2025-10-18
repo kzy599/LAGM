@@ -341,7 +341,7 @@ P <- ggplot(data = ck_dt[type == y_lab_name,], aes(x = app, y = value, group = a
   )
 
 ggsave(paste("Figrue_bar_",y_lab_name,".pdf",sep = ""), P , width = 22, height = 10, dpi = 300)
-
+}
 
 ck_dt_line = rename_dt(ck_dt_line)
 nG = 20
