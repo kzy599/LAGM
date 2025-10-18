@@ -87,7 +87,7 @@ calpercent(x = 0.11,y = c(0.13,0.09))
 
 
 calpercent(y = 38.27,x = ce5)
-calpercent(y = 34.11,x = ce10p
+calpercent(y = 34.11,x = ce10)
 calpercent(y = 29.76,x = ce15)
 calpercent(y = 27.29,x = ce20)
 calpercent(x = 73.97,y = 38.27)
@@ -98,6 +98,7 @@ calpercent(x = 51.76,y = 27.29)
 calpercent(x = 0.05,y = 0.07)
 calpercent(x = 0.07,y = 0.1)
 calpercent(x = 0.09,y = 0.12)
+calpercent(y = c(0.1,0.19,0.28,0.36), x = c(0.07,0.13,0.19,0.25))
 
 #bp
 calpercent = function(x,y){
