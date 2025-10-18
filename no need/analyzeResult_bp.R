@@ -281,11 +281,18 @@ ck_dt = DT_test(rep_out,Vtype = unique(ck_dt_line$type),gen = gen , ck_dt = ck_d
 ck_dt = rename_dt(ck_dt)
 
 ck_dt$app = factor(ck_dt$app,level = c("LAGM7","LAGM5","LAGM3","LAGM2","LAGM1","TC","OCSrate","OCS25","OCS45","OCS65","OCS90","Random"))
-ck_dt$BP = paste(ck_dt$gen,"-generation",sep = "")
-ck_dt$BP = factor(ck_dt$BP, level = c("5-generation","10-generation","15-generation","20-generation"))
-                           
-y_lab_name = "Inbreeding"#efficiency_interval meaningless
+ck_dt$BP = paste("G",ck_dt$gen,sep = "")
+ck_dt$BP = factor(ck_dt$BP, level = c("G5","G10","G15","G20"))
 ck_dt$type = factor(ck_dt$type,level = c("Gain","Inbreeding","EffectiveSize","Efficiency","Efficiency_5","Efficiency_10"))
+base_cols <- ggsci::pal_lancet()(9)  # Lancet 原始 9 色
+my_cols   <- grDevices::colorRampPalette(base_cols)(length(unique(ck_dt$app)))
+names(my_cols) <- unique(ck_dt$app)
+
+y_lab_name_all = c("Efficiency","Gain","Inbreeding")
+title_name = c("Conversion efficiency", "Genetic gain", "Inbreeding")
+
+for(y_lab_name in y_lab_name_all){
+  
 if(y_lab_name == "Gain"){
 ck_dt[, letter_y_test := value + 3 * valuese, by = type]
 ck_dt[, letter_y := value + 1.1 * valuese, by = type]
@@ -298,10 +305,6 @@ ck_dt[, letter_y_test := value + 3 * valuese, by = type]
 ck_dt[, letter_y := value + 1.1 * valuese, by = type]
 # ck_dt[app =="GAS"&BP == "5-generations", letter_y_test := value + 2 * valuese, by = type]
 }
-
-base_cols <- ggsci::pal_lancet()(9)  # Lancet 原始 9 色
-my_cols   <- grDevices::colorRampPalette(base_cols)(length(unique(ck_dt$app)))
-names(my_cols) <- unique(ck_dt$app)
 P <- ggplot(data = ck_dt[type == y_lab_name,], aes(x = app, y = value, group = app, fill = app)) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.9),width = 0.9) +  # 确保条形图分组不重叠，position_dodge里的width 要与外面的width相等
   geom_text(aes(label = round(value,2),y = letter_y), position = position_dodge(width = 0.9),vjust = 0, size = 5) +  # 添加数值标签
@@ -323,7 +326,7 @@ P <- ggplot(data = ck_dt[type == y_lab_name,], aes(x = app, y = value, group = a
   scale_fill_manual(values = my_cols, drop = FALSE)+
   #添加position = position_dodge(width = 0.9)如果一个x分类内有多个组，要确保组不重叠，width 要与geom_bar里面的width相等
   geom_text(data = ck_dt[type == y_lab_name,], aes(label = Letter, y = letter_y_test), vjust = 0,size = 5) + facet_wrap(~BP, scales = "free_x")+
-  ggtitle("Inbreeding across mating strategies in various breeding programs") +
+  ggtitle(paste(title_name[which(y_lab_name_all == y_lab_name)],"across mating strategies at various generations",sep = " " )) +
   theme(
     plot.title = element_text(
       size = 20,          # 大字号
@@ -342,6 +345,8 @@ ggsave(paste("Figrue_bar_",y_lab_name,".pdf",sep = ""), P , width = 22, height =
 
 ck_dt_line = rename_dt(ck_dt_line)
 nG = 20
+Gpoint = seq(0,nG,5)
+Gpoint[1] = 1
 c("LAGM1","LAGM2","LAGM3","LAGM5","LAGM7","OCS45","OCS25")
 P<- ggplot(data = ck_dt_line[type%in%c("Gain","Inbreeding")&app%in%c("LAGM2","LAGM7","OCS45","OCS65"),],aes(x=gen,y=value,group = app, color = app))+
   geom_point()+
@@ -354,7 +359,7 @@ P<- ggplot(data = ck_dt_line[type%in%c("Gain","Inbreeding")&app%in%c("LAGM2","LA
   #scale_x_continuous(limits = c(0,20),breaks = seq(0,20,1))+labs(fill="Breeding scheme")
   geom_errorbar(aes(ymin=value-valuese,
                     ymax=value+valuese),
-                width=0.05,alpha = 0.5)+labs(color="Mat")+scale_color_lancet()+scale_x_continuous(limits = c(1,nG),breaks = seq(1,nG,4)) + facet_wrap(~type, scales = "free")+
+                width=0.05,alpha = 0.5)+labs(color="Mat")+scale_color_lancet()+scale_x_continuous(limits = c(1,nG),breaks = Gpoint) + facet_wrap(~type, scales = "free")+
 ggtitle("Genetic gain and Inbreeding across 20 generations") +
   theme(
     plot.title = element_text(
@@ -371,33 +376,34 @@ ggtitle("Genetic gain and Inbreeding across 20 generations") +
 ggsave("Figrue_gain_inbreeding_line_27.pdf", P , width = 15, height = 6, dpi = 300)
 
 
-y_lab_name = "Gain"
-dt = ck_dt[type==y_lab_name,.(app,BP,value,valuese)]
-# dt[, col_id := paste(type, dataset, sep = "_")]
-dt[, value_display := sprintf("%.2f ± %.2f", value, valuese)]
 
-wide_dt <- dcast(dt, app ~ BP, value.var = "value_display")
 
-# ordered_cols = c("MODE")
-# for(i in c("ST","MT_continuous","MT_binary")){
-#    ordered_cols = c(ordered_cols,paste(i,c("Linear-A","Low-ADE","Med-ADE","Hig-ADE"),sep = '_'))
-# }
-ordered_cols = c("app","5-generations","10-generations","15-generations","20-generations")
 
+  
+ck_dt[, value_display := sprintf("%.2f ± %.2f", value, valuese)]
+
+wide_dt <- dcast(ck_dt, app ~ type+BP, value.var = "value_display")
+# ordered_cols = c("app","5-generation","10-generation","15-generation","20-generation")
+ordered_cols = c("app")
+for(i in c("Gain","Inbreeding","Efficiency")){
+   ordered_cols = c(ordered_cols,paste(i,c("G5","G10","G15","G20"),sep = '_'))
+}
 wide_dt <- wide_dt[, ..ordered_cols]
-colnames(wide_dt)[1] = "Mating_strategies" 
+colnames(wide_dt)[1] = "Mating strategies" 
+ordered_cols[1] = "Mating strategies" 
 # Adjust header map accordingly
-# header_map <- data.frame(
-#   col_keys = ordered_cols,
-#   Type = c("Model", rep(c("ST", "MT_continuous", "MT_binary"), each = 4)),
-#   Datasets = c(" ", rep(c("Linear-A","Low-ADE","Med-ADE","Hig-ADE"), 3)),
-#   stringsAsFactors = FALSE
-# )
-
+header_map <- data.frame(
+  col_keys = ordered_cols,
+  Type = c("Mating_strategies", rep(c("Gain","Inbreeding","Efficiency"), each = 4)),
+  Horizons = c(" ", rep(c("G5","G10","G15","G20"), 3)),
+  stringsAsFactors = FALSE
+)
+library(flextable)
+library(officer)
 ft <- flextable(wide_dt)
-# ft <- set_header_df(ft, mapping = header_map, key = "col_keys")
-# ft <- merge_h(ft, part = "header")  # merge group headers
-# ft <- merge_v(ft, j = "MODE", part = "body")  # optional: merge MODE column
+ft <- set_header_df(ft, mapping = header_map, key = "col_keys")
+ft <- merge_h(ft, part = "header")  # merge group headers
+ft <- merge_v(ft, j = "Mating strategies", part = "body")  # optional: merge MODE column
 ft <- theme_booktabs(ft)
 ft <- autofit(ft)
 ft <- fontsize(ft, size = 9, part = "all")        # smaller font
@@ -405,14 +411,11 @@ ft <- width(ft, width = 0.5)
 
 save_as_html(ft, path = "strategies.html")
 
-library(officer)
-
 doc <- read_docx() |> 
-  body_add_par(paste(y_lab_name,"accuracy across models and simulated datasets",sep = " "), style = "heading 1") |> 
+  body_add_par(paste("Gain, inbreeding and efficiency across strategies and horizons",sep = " "), style = "heading 1") |> 
   body_add_flextable(ft)
 
 print(doc, target = "strategies.docx")
-
 
 
 
