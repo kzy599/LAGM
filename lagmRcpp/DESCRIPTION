@@ -1,0 +1,31 @@
+Package: lagm
+Type: Package
+Title: Pure Rcpp Look-Ahead Genomic Mating
+Version: 0.1.0
+Authors@R: c(
+    person(given = "Kangziyi", family = "User", role = c("aut", "cre"), email = "user@example.com")
+    )
+Description: Refactored look-ahead genomic mating tools built around Rcpp,
+    generic matrix inputs, flexible mating contribution constraints, and
+    diversity scoring from genotype data or user-supplied relationship
+    matrices such as pedigree A matrices.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Depends: R (>= 4.2)
+Imports:
+    methods,
+    Rcpp,
+    stats,
+    utils
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
+Suggests:
+    AlphaSimR,
+    ggplot2,
+    optiSel,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
