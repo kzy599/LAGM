@@ -65,7 +65,20 @@ lagm_plan <- function(individual_ids,
   gain_mat <- score_grid$expected_gain
   div_mat <- score_grid$expected_diversity
 
-  run_opt_mode <- function(opt_mode, Gmin, Gmax, Dmin, Dmax) {
+    # --- compute base_diversity if not provided ---
+  if (is.null(input$base_diversity)) {
+    if (identical(diversity_mode, "genomic")) {
+      base_div_value <- mean(colMeans(input$geno_matrix == 1, na.rm = TRUE))
+    } else {
+      all_div_mat <- 1 - input$relationship_matrix / 2
+      diag(all_div_mat) <- NA_real_
+      base_div_value <- mean(pmax(1e-12, all_div_mat), na.rm = TRUE)
+    }
+  } else {
+    base_div_value <- input$base_diversity
+  }
+
+  run_opt_mode <- function(opt_mode, Gmin, Gmax) {
     optimize_mating_plan_cpp(
       gain_mat = gain_mat,
       div_mat = div_mat,
@@ -77,8 +90,7 @@ lagm_plan <- function(individual_ids,
       opt_mode = as.integer(opt_mode),
       Gmin = as.double(Gmin),
       Gmax = as.double(Gmax),
-      Dmin = as.double(Dmin),
-      Dmax = as.double(Dmax),
+      base_div = as.double(base_div_value),
       lookahead_t = as.double(lookahead_generations),
       n_iter = as.integer(n_iter),
       swap_prob = as.double(swap_prob),
@@ -93,38 +105,17 @@ lagm_plan <- function(individual_ids,
     )
   }
 
-  # Stage 1: maximize gain only
-  sol_gain <- run_opt_mode(
-    opt_mode = 1L,
-    Gmin = 0,
-    Gmax = 1,
-    Dmin = 0,
-    Dmax = 1
-  )
+  # Stage 1: maximize gain only -> Gmax
+  sol_gain <- run_opt_mode(opt_mode = 1L, Gmin = 0, Gmax = 1)
 
-  # Stage 2: maximize diversity only
-  sol_div <- run_opt_mode(
-    opt_mode = 2L,
-    Gmin = 0,
-    Gmax = 1,
-    Dmin = 0,
-    Dmax = 1
-  )
+  # Stage 2: maximize diversity only -> Gmin
+  sol_div  <- run_opt_mode(opt_mode = 2L, Gmin = 0, Gmax = 1)
 
-  # Population-level bounds for final normalization.
   Gmax <- sol_gain$avg_gain
-  Dmin <- sol_gain$avg_diversity
   Gmin <- sol_div$avg_gain
-  Dmax <- sol_div$avg_diversity
 
-  # Stage 3: combined normalized trade-off
-  sol_final <- run_opt_mode(
-    opt_mode = 3L,
-    Gmin = Gmin,
-    Gmax = Gmax,
-    Dmin = Dmin,
-    Dmax = Dmax
-  )
+  # Stage 3: combined trade-off
+  sol_final <- run_opt_mode(opt_mode = 3L, Gmin = Gmin, Gmax = Gmax)
 
   data.table::data.table(
     female_id = input$female_ids[sol_final$female_index],
