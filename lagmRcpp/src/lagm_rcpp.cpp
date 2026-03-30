@@ -159,7 +159,7 @@ double evaluate_pair_cpp(const double gain,
   // const double Dmax_t = std::pow(Dmax, lookahead_t);
   // const double Dmin_t = std::pow(Dmin, lookahead_t);
 
-  const double ratio_D = std::max((div - Dmin) / (Dmax - Dmin + eps), eps);
+  const double ratio_D = std::max(div, eps);
   const double ratio_G = std::max((gain - Gmin) / (Gmax - Gmin + eps), eps);
 
   return std::log(ratio_G) + lookahead_t * std::log(ratio_D);
