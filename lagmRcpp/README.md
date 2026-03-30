@@ -11,7 +11,6 @@ It is implemented as a **generic optimizer**:
 ## Installation
 
 ```r
-remotes::install_local("lagmRcpp", upgrade = "never", force = TRUE)
 remotes::install_github("kzy599/LAGM", subdir = "lagmRcpp")
 ```
 
