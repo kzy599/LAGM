@@ -155,14 +155,14 @@ double evaluate_pair_cpp(const double gain,
   }
 
   const double eps = 1e-12;
-  const double div_t = std::pow(div, lookahead_t);
-  const double Dmax_t = std::pow(Dmax, lookahead_t);
-  const double Dmin_t = std::pow(Dmin, lookahead_t);
+  // const double div_t = std::pow(div, lookahead_t);
+  // const double Dmax_t = std::pow(Dmax, lookahead_t);
+  // const double Dmin_t = std::pow(Dmin, lookahead_t);
 
-  const double ratio_D = std::max((div_t - Dmin_t) / (Dmax_t - Dmin_t + eps), eps);
+  const double ratio_D = std::max((div - Dmin) / (Dmax - Dmin + eps), eps);
   const double ratio_G = std::max((gain - Gmin) / (Gmax - Gmin + eps), eps);
 
-  return std::log(ratio_G) + std::log(ratio_D);
+  return std::log(ratio_G) + lookahead_t * std::log(ratio_D);
 }
 
 double evaluate_plan_cpp(const arma::uvec& female_plan,
