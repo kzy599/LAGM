@@ -144,6 +144,8 @@ double evaluate_pair_cpp(const double gain,
                          const int opt_mode,
                          const double Gmin,
                          const double Gmax,
+                         const double Dmin,
+                         const double Dmax,
                          const double base_div,
                          const double lookahead_t) {
   if (opt_mode == 1) {
@@ -154,10 +156,15 @@ double evaluate_pair_cpp(const double gain,
   }
 
   const double eps = 1e-12;
-  const double ratio_G = std::max((gain - Gmin) / (Gmax - Gmin + eps), eps);
-  const double d = std::max(div / (base_div + eps), eps);
+  const double div_t = std::pow(div/base_div, lookahead_t);
+  const double Dmax_t = std::pow(Dmax/base_div, lookahead_t);
+  const double Dmin_t = std::pow(Dmin/base_div, lookahead_t);
 
-  return std::log(ratio_G) + lookahead_t * std::log(d);
+  const double ratio_D = std::max((div_t - Dmin_t) / (Dmax_t - Dmin_t + eps), eps);
+  const double ratio_G = std::max((gain - Gmin) / (Gmax - Gmin + eps), eps);
+
+  return std::log(ratio_G) + lookahead_t * std::log(ratio_D);
+
 }
 
 double evaluate_plan_cpp(const arma::uvec& female_plan,
@@ -167,6 +174,8 @@ double evaluate_plan_cpp(const arma::uvec& female_plan,
                          int opt_mode,
                          double Gmin,
                          double Gmax,
+                         double Dmin,
+                         double Dmax,
                          double base_div,
                          double lookahead_t,
                          double* avg_gain_out = nullptr,
@@ -190,9 +199,16 @@ double evaluate_plan_cpp(const arma::uvec& female_plan,
     *avg_div_out = avg_div;
   }
 
-    return evaluate_pair_cpp(
-    avg_gain, avg_div, opt_mode,
-    Gmin, Gmax, base_div, lookahead_t
+  return evaluate_pair_cpp(
+    avg_gain,
+    avg_div,
+    opt_mode,
+    Gmin,
+    Gmax,
+    Dmin,
+    Dmax,
+    base_div,
+    lookahead_t
   );
 }
 
@@ -207,6 +223,8 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
                            const int opt_mode,
                            const double Gmin,
                            const double Gmax,
+                           const double Dmin,
+                           const double Dmax,
                            const double base_div,
                            const double lookahead_t,
                            const int n_iter,
@@ -342,6 +360,8 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
     opt_mode,
     Gmin,
     Gmax,
+    Dmin,
+    Dmax,
     base_div,
     lookahead_t,
     &current_avg_gain,
@@ -387,6 +407,8 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
       opt_mode,
       Gmin,
       Gmax,
+      Dmin,
+      Dmax,
       base_div,
       lookahead_t
     );
@@ -438,6 +460,8 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
         opt_mode,
         Gmin,
         Gmax,
+        Dmin,
+        Dmax,
         base_div,
         lookahead_t,
         &trial_avg_gain,
@@ -595,6 +619,8 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
                               const int opt_mode = 3,
                               const double Gmin = 0.0,
                               const double Gmax = 1.0,
+                              const double Dmin = 0.0,
+                              const double Dmax = 1.0,
                               const double base_div = 1.0,
                               const double lookahead_t = 1.0,
                               const int n_iter = 2000,
@@ -672,6 +698,8 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
       opt_mode,
       Gmin,
       Gmax,
+      Dmin,
+      Dmax,
       base_div,
       lookahead_t,
       n_iter,
@@ -716,8 +744,15 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
     pair_gain[k] = gain_mat(best_female_plan[k], best_male_plan[k]);
     pair_div[k] = div_mat(best_female_plan[k], best_male_plan[k]);
     score[k] = evaluate_pair_cpp(
-      pair_gain[k], pair_div[k], opt_mode,
-      Gmin, Gmax, base_div, lookahead_t
+      pair_gain[k],
+      pair_div[k],
+      opt_mode,
+      Gmin,
+      Gmax,
+      Dmin,
+      Dmax,
+      base_div,
+      lookahead_t
     );
   }
 
