@@ -78,8 +78,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // optimize_mating_plan_cpp
-List optimize_mating_plan_cpp(const arma::mat& gain_mat, const arma::mat& div_mat, const IntegerVector& female_min, const IntegerVector& female_max, const IntegerVector& male_min, const IntegerVector& male_max, const int n_crosses, const int opt_mode, const double Gmin, const double Gmax, const double base_div, const double lookahead_t, const int n_iter, const double swap_prob, const double mutate_female_prob, const double init_prob, const double cooling_rate, const int stop_window, const double stop_eps, const int warmup_iter, const int n_pop, const int n_threads);
-RcppExport SEXP _lagm_optimize_mating_plan_cpp(SEXP gain_matSEXP, SEXP div_matSEXP, SEXP female_minSEXP, SEXP female_maxSEXP, SEXP male_minSEXP, SEXP male_maxSEXP, SEXP n_crossesSEXP, SEXP opt_modeSEXP, SEXP GminSEXP, SEXP GmaxSEXP, SEXP base_divSEXP, SEXP lookahead_tSEXP, SEXP n_iterSEXP, SEXP swap_probSEXP, SEXP mutate_female_probSEXP, SEXP init_probSEXP, SEXP cooling_rateSEXP, SEXP stop_windowSEXP, SEXP stop_epsSEXP, SEXP warmup_iterSEXP, SEXP n_popSEXP, SEXP n_threadsSEXP) {
+List optimize_mating_plan_cpp(const arma::mat& gain_mat, const arma::mat& div_mat, const IntegerVector& female_min, const IntegerVector& female_max, const IntegerVector& male_min, const IntegerVector& male_max, const int n_crosses, const int opt_mode, const double Gmin, const double Gmax, const double Dmin, const double Dmax, const double base_div, const double lookahead_t, const int n_iter, const double swap_prob, const double mutate_female_prob, const double init_prob, const double cooling_rate, const int stop_window, const double stop_eps, const int warmup_iter, const int n_pop, const int n_threads);
+RcppExport SEXP _lagm_optimize_mating_plan_cpp(SEXP gain_matSEXP, SEXP div_matSEXP, SEXP female_minSEXP, SEXP female_maxSEXP, SEXP male_minSEXP, SEXP male_maxSEXP, SEXP n_crossesSEXP, SEXP opt_modeSEXP, SEXP GminSEXP, SEXP GmaxSEXP, SEXP DminSEXP, SEXP DmaxSEXP, SEXP base_divSEXP, SEXP lookahead_tSEXP, SEXP n_iterSEXP, SEXP swap_probSEXP, SEXP mutate_female_probSEXP, SEXP init_probSEXP, SEXP cooling_rateSEXP, SEXP stop_windowSEXP, SEXP stop_epsSEXP, SEXP warmup_iterSEXP, SEXP n_popSEXP, SEXP n_threadsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -93,6 +93,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const int >::type opt_mode(opt_modeSEXP);
     Rcpp::traits::input_parameter< const double >::type Gmin(GminSEXP);
     Rcpp::traits::input_parameter< const double >::type Gmax(GmaxSEXP);
+    Rcpp::traits::input_parameter< const double >::type Dmin(DminSEXP);
+    Rcpp::traits::input_parameter< const double >::type Dmax(DmaxSEXP);
     Rcpp::traits::input_parameter< const double >::type base_div(base_divSEXP);
     Rcpp::traits::input_parameter< const double >::type lookahead_t(lookahead_tSEXP);
     Rcpp::traits::input_parameter< const int >::type n_iter(n_iterSEXP);
@@ -105,7 +107,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const int >::type warmup_iter(warmup_iterSEXP);
     Rcpp::traits::input_parameter< const int >::type n_pop(n_popSEXP);
     Rcpp::traits::input_parameter< const int >::type n_threads(n_threadsSEXP);
-    rcpp_result_gen = Rcpp::wrap(optimize_mating_plan_cpp(gain_mat, div_mat, female_min, female_max, male_min, male_max, n_crosses, opt_mode, Gmin, Gmax, base_div, lookahead_t, n_iter, swap_prob, mutate_female_prob, init_prob, cooling_rate, stop_window, stop_eps, warmup_iter, n_pop, n_threads));
+    rcpp_result_gen = Rcpp::wrap(optimize_mating_plan_cpp(gain_mat, div_mat, female_min, female_max, male_min, male_max, n_crosses, opt_mode, Gmin, Gmax, Dmin, Dmax, base_div, lookahead_t, n_iter, swap_prob, mutate_female_prob, init_prob, cooling_rate, stop_window, stop_eps, warmup_iter, n_pop, n_threads));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -116,7 +118,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_lagm_compute_pair_relationship_diversity_cpp", (DL_FUNC) &_lagm_compute_pair_relationship_diversity_cpp, 3},
     {"_lagm_lagm_score_grid_cpp", (DL_FUNC) &_lagm_lagm_score_grid_cpp, 4},
     {"_lagm_lagm_relationship_score_grid_cpp", (DL_FUNC) &_lagm_lagm_relationship_score_grid_cpp, 5},
-    {"_lagm_optimize_mating_plan_cpp", (DL_FUNC) &_lagm_optimize_mating_plan_cpp, 22},
+    {"_lagm_optimize_mating_plan_cpp", (DL_FUNC) &_lagm_optimize_mating_plan_cpp, 24},
     {NULL, NULL, 0}
 };
 
