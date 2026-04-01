@@ -65,7 +65,7 @@ Combined score:
 $$
 \log\left(\max\left(\frac{\bar{G}-G_{\min}}{G_{\max}-G_{\min}+\epsilon},\epsilon\right)\right)
 +
-\t\
+t\
 *
 \log\left(\max\left(\frac{\bar{D}^{t}-D_{\min}^{t}}{D_{\max}^{t}-D_{\min}^{t}+\epsilon},\epsilon\right)\right)
 $$
