@@ -72,12 +72,6 @@ $$
 
 where $t =$ `lookahead_generations`.
 
-Relationship-mode pair diversity:
-
-$$
-D = (1 - c_{t+1})/1 - c_{t}
-$$
-
 ## Constraint semantics
 
 The optimizer uses **0-or-[min,max]** semantics:
