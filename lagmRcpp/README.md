@@ -58,7 +58,7 @@ Users do **not** run stage 1/2 manually.
 For one complete mating plan:
 
 - average gain: $\bar{G}$
-- average diversity: $\bar{D}$
+- average 1-/deltaC: $\bar{D}$
 
 Combined score:
 
