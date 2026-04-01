@@ -65,20 +65,63 @@ lagm_plan <- function(individual_ids,
   gain_mat <- score_grid$expected_gain
   div_mat <- score_grid$expected_diversity
 
-    # --- compute base_diversity if not provided ---
+# --- compute base_diversity if not provided ---
+#
+# base_div_value (H0) is used to convert raw diversity (He) into a retention
+# rate: D = He / H0, so that D^t gives the cumulative retention after t
+# generations.
+#
+# EQUIVALENCE OF BASES
+# --------------------
+# In the LAGM objective  Obj = log(Gnorm) + t * log(Xnorm),
+# where X = D^t and Xnorm = (D^t - Dmin^t) / (Dmax^t - Dmin^t):
+#
+#   If all candidate mating plans share the same H0 (i.e. they originate
+#   from the same base population within a single generation), then
+#   Di = He_i / H0, and:
+#
+#     Xnorm = ((He_i^t - He_min^t) * (1/H0^t)) / ((He_max^t - He_min^t)  * (1/H0^t))
+#
+#
+#   The constant H0^t cancels in both numerator and denominator.
+#   => Using D^t or He^t as the diversity metric yields IDENTICAL Xnorm.
+#   => The choice of H0 does NOT affect the optimisation result.
+#
+# WHEN THEY ARE NOT EQUIVALENT
+# ----------------------------
+# If candidate plans correspond to DIFFERENT base populations (e.g.
+# cross-breed comparisons, or multi-generation pools with different
+# founders), each plan i has its own H0_i.  Then:
+#
+#     Di^t = (He_i / H0_i)^t
+#
+#   Different H0_i^t values do NOT cancel in the normalisation.
+#   => D^t and He^t give DIFFERENT Xnorm and DIFFERENT rankings.
+#   => In this case, D (retention rate) is the correct metric, because
+#      it measures diversity loss relative to each plan's own baseline,
+#      which is the quantity with genetic meaning.
+#
+# SUMMARY:  same base population  -> D^t == He^t  (after normalisation)
+#           different base pops   -> must use D = He/H0, not raw He
+#
   if (is.null(input$base_diversity)) {
     if (identical(diversity_mode, "genomic")) {
       base_div_value <- mean(colMeans(input$geno_matrix == 1, na.rm = TRUE))
+
+      #base_div_value <- mean(div_mat)
+      #base_div_value <- sum(div_mat)/(4*n_crosses^2)
     } else {
-      all_div_mat <- 1 - input$relationship_matrix / 2
-      diag(all_div_mat) <- NA_real_
-      base_div_value <- mean(pmax(1e-12, all_div_mat), na.rm = TRUE)
+      all_div_mat <- input$relationship_matrix / 2
+      base_div_value = 1- mean(all_div_mat, na.rm = TRUE)
+
+      #base_div_value <- mean(div_mat)
+      #base_div_value = 1- sum(all_div_mat, na.rm = TRUE)/(4*n_crosses^2)
     }
   } else {
     base_div_value <- input$base_diversity
   }
 
-  run_opt_mode <- function(opt_mode, Gmin, Gmax) {
+  run_opt_mode <- function(opt_mode, Gmin, Gmax, Dmin, Dmax) {
     optimize_mating_plan_cpp(
       gain_mat = gain_mat,
       div_mat = div_mat,
@@ -90,6 +133,8 @@ lagm_plan <- function(individual_ids,
       opt_mode = as.integer(opt_mode),
       Gmin = as.double(Gmin),
       Gmax = as.double(Gmax),
+      Dmin = as.double(Dmin),
+      Dmax = as.double(Dmax),
       base_div = as.double(base_div_value),
       lookahead_t = as.double(lookahead_generations),
       n_iter = as.integer(n_iter),
@@ -105,17 +150,38 @@ lagm_plan <- function(individual_ids,
     )
   }
 
-  # Stage 1: maximize gain only -> Gmax
-  sol_gain <- run_opt_mode(opt_mode = 1L, Gmin = 0, Gmax = 1)
+  # Stage 1: maximize gain only
+  sol_gain <- run_opt_mode(
+    opt_mode = 1L,
+    Gmin = 0,
+    Gmax = 1,
+    Dmin = 0,
+    Dmax = 1
+  )
 
-  # Stage 2: maximize diversity only -> Gmin
-  sol_div  <- run_opt_mode(opt_mode = 2L, Gmin = 0, Gmax = 1)
+  # Stage 2: maximize diversity only
+  sol_div <- run_opt_mode(
+    opt_mode = 2L,
+    Gmin = 0,
+    Gmax = 1,
+    Dmin = 0,
+    Dmax = 1
+  )
 
+  # Population-level bounds for final normalization.
   Gmax <- sol_gain$avg_gain
+  Dmin <- sol_gain$avg_diversity
   Gmin <- sol_div$avg_gain
+  Dmax <- sol_div$avg_diversity
 
-  # Stage 3: combined trade-off
-  sol_final <- run_opt_mode(opt_mode = 3L, Gmin = Gmin, Gmax = Gmax)
+  # Stage 3: combined normalized trade-off
+  sol_final <- run_opt_mode(
+    opt_mode = 3L,
+    Gmin = Gmin,
+    Gmax = Gmax,
+    Dmin = Dmin,
+    Dmax = Dmax
+  )
 
   data.table::data.table(
     female_id = input$female_ids[sol_final$female_index],
