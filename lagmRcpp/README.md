@@ -75,7 +75,7 @@ where $t =$ `lookahead_generations`.
 Relationship-mode pair diversity:
 
 $$
-D_{ij} = 1 - \frac{r_{ij}}{2}
+D = (1 - c_{t+1})/1 - c_{t}
 $$
 
 ## Constraint semantics
