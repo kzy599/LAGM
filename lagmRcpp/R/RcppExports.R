@@ -21,7 +21,7 @@ lagm_relationship_score_grid_cpp <- function(relationship_matrix, female_index, 
     .Call(`_lagm_lagm_relationship_score_grid_cpp`, relationship_matrix, female_index, male_index, female_ebv, male_ebv)
 }
 
-optimize_mating_plan_cpp <- function(gain_mat, div_mat, female_min, female_max, male_min, male_max, n_crosses, opt_mode = 3L, Gmin = 0.0, Gmax = 1.0, Dmin = 0.0, Dmax = 1.0, base_div = 1.0, lookahead_t = 1.0, n_iter = 2000L, swap_prob = 0.2, mutate_female_prob = 0.5, init_prob = 0.8, cooling_rate = 0.995, stop_window = 1000L, stop_eps = 1e-8, warmup_iter = 100L, n_pop = 50L, n_threads = 4L) {
-    .Call(`_lagm_optimize_mating_plan_cpp`, gain_mat, div_mat, female_min, female_max, male_min, male_max, n_crosses, opt_mode, Gmin, Gmax, Dmin, Dmax, base_div, lookahead_t, n_iter, swap_prob, mutate_female_prob, init_prob, cooling_rate, stop_window, stop_eps, warmup_iter, n_pop, n_threads)
+optimize_mating_plan_cpp <- function(gain_mat, div_mat, female_min, female_max, male_min, male_max, n_crosses, opt_mode = 3L, Gmin = 0.0, Gmax = 1.0, Dmin = 0.0, Dmax = 1.0, base_div = 1.0, lookahead_t = 1.0, n_iter = 2000L, swap_prob = 0.2, mutate_female_prob = 0.5, init_prob = 0.8, cooling_rate = 0.995, stop_window = 1000L, stop_eps = 1e-8, warmup_iter = 100L, n_pop = 50L, n_threads = 4L, diversity_metric = 1L, female_geno = NULL, male_geno = NULL) {
+    .Call(`_lagm_optimize_mating_plan_cpp`, gain_mat, div_mat, female_min, female_max, male_min, male_max, n_crosses, opt_mode, Gmin, Gmax, Dmin, Dmax, base_div, lookahead_t, n_iter, swap_prob, mutate_female_prob, init_prob, cooling_rate, stop_window, stop_eps, warmup_iter, n_pop, n_threads, diversity_metric, female_geno, male_geno)
 }
 

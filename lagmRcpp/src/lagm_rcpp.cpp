@@ -167,6 +167,28 @@ double evaluate_pair_cpp(const double gain,
 
 }
 
+// Compute population-level expected heterozygosity (He) from a mating plan.
+// For each selected pair k, the offspring allele frequency at locus l is
+// p_off_{k,l} = (p_{f_k,l} + p_{m_k,l}) / 2.  The population-mean frequency
+// is p_bar_l = mean_k(p_off_{k,l}), and He = mean_l(2 * p_bar_l * (1 - p_bar_l)).
+// This captures the between-family variance component (Wahlund: H_T = H_S + 2*Var(p)).
+double compute_population_He_from_plan(const arma::uvec& female_plan,
+                                       const arma::uvec& male_plan,
+                                       const arma::mat& female_geno,
+                                       const arma::mat& male_geno) {
+  const unsigned int n = female_plan.n_elem;
+  const unsigned int n_loci = female_geno.n_cols;
+
+  arma::rowvec sum_p(n_loci, arma::fill::zeros);
+  for (unsigned int k = 0; k < n; ++k) {
+    sum_p += (female_geno.row(female_plan[k]) + male_geno.row(male_plan[k]));
+  }
+  // p_bar_l = (sum of (geno_f + geno_m) / 2) / n  =  sum / (2 * n)
+  arma::rowvec p_bar = sum_p / (2.0 * static_cast<double>(n));
+
+  return arma::mean(2.0 * p_bar % (1.0 - p_bar));
+}
+
 double evaluate_plan_cpp(const arma::uvec& female_plan,
                          const arma::uvec& male_plan,
                          const arma::mat& gain_mat,
@@ -178,19 +200,29 @@ double evaluate_plan_cpp(const arma::uvec& female_plan,
                          double Dmax,
                          double base_div,
                          double lookahead_t,
+                         int diversity_metric = 0,
+                         const arma::mat* female_geno_ptr = nullptr,
+                         const arma::mat* male_geno_ptr = nullptr,
                          double* avg_gain_out = nullptr,
                          double* avg_div_out = nullptr) {
   double sum_gain = 0.0;
   double sum_div = 0.0;
-  const int n = female_plan.n_elem;
+  const unsigned int n = female_plan.n_elem;
 
-  for (int k = 0; k < n; ++k) {
+  for (unsigned int k = 0; k < n; ++k) {
     sum_gain += gain_mat(female_plan[k], male_plan[k]);
     sum_div += div_mat(female_plan[k], male_plan[k]);
   }
 
-  const double avg_gain = sum_gain / n;
-  const double avg_div = sum_div / n;
+  const double avg_gain = sum_gain / static_cast<double>(n);
+  double avg_div;
+
+  if (diversity_metric == 1 && female_geno_ptr != nullptr && male_geno_ptr != nullptr) {
+    avg_div = compute_population_He_from_plan(female_plan, male_plan,
+                                              *female_geno_ptr, *male_geno_ptr);
+  } else {
+    avg_div = sum_div / n;
+  }
 
   if (avg_gain_out != nullptr) {
     *avg_gain_out = avg_gain;
@@ -235,6 +267,9 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
                            const int stop_window,
                            const double stop_eps,
                            const int warmup_iter,
+                           const int diversity_metric,
+                           const arma::mat* female_geno_ptr,
+                           const arma::mat* male_geno_ptr,
                            RNG& rng) {
   const int n_f = gain_mat.n_rows;
   const int n_m = gain_mat.n_cols;
@@ -364,6 +399,9 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
     Dmax,
     base_div,
     lookahead_t,
+    diversity_metric,
+    female_geno_ptr,
+    male_geno_ptr,
     &current_avg_gain,
     &current_avg_div
   );
@@ -410,7 +448,10 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
       Dmin,
       Dmax,
       base_div,
-      lookahead_t
+      lookahead_t,
+      diversity_metric,
+      female_geno_ptr,
+      male_geno_ptr
     );
 
     double delta = trial_score - current_score;
@@ -464,6 +505,9 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
         Dmax,
         base_div,
         lookahead_t,
+        diversity_metric,
+        female_geno_ptr,
+        male_geno_ptr,
         &trial_avg_gain,
         &trial_avg_div
       );
@@ -508,6 +552,11 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
   return SAResult{best_female_plan, best_male_plan, best_score, best_avg_gain, best_avg_div};
 }
 
+// NOTE: Despite the name, this function returns the per-pair observed
+// heterozygosity (Ho), computed as Ho = p_f + p_m - 2*p_f*p_m.
+// The name is retained for backward API compatibility.
+// For the population-level expected heterozygosity (He) under the full
+// mating plan, see compute_population_He_from_plan().
 // [[Rcpp::export]]
 arma::mat compute_expected_heterozygosity_cpp(const arma::mat& female_geno,
                                               const arma::mat& male_geno) {
@@ -632,7 +681,10 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
                               const double stop_eps = 1e-8,
                               const int warmup_iter = 100,
                               const int n_pop = 50,
-                              const int n_threads = 4) {
+                              const int n_threads = 4,
+                              const int diversity_metric = 1,
+                              Rcpp::Nullable<Rcpp::NumericMatrix> female_geno = R_NilValue,
+                              Rcpp::Nullable<Rcpp::NumericMatrix> male_geno = R_NilValue) {
   const int n_f = gain_mat.n_rows;
   const int n_m = gain_mat.n_cols;
 
@@ -658,6 +710,29 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
   }
   if (mutate_female_prob < 0.0 || mutate_female_prob > 1.0) {
     stop("mutate_female_prob must be in [0,1].");
+  }
+
+  // Resolve optional genotype matrices for pop_He mode
+  arma::mat female_geno_arma;
+  arma::mat male_geno_arma;
+  const arma::mat* female_geno_ptr = nullptr;
+  const arma::mat* male_geno_ptr = nullptr;
+
+  if (diversity_metric == 1) {
+    if (female_geno.isNull() || male_geno.isNull()) {
+      stop("diversity_metric = 1 (pop_He) requires female_geno and male_geno. "
+           "Only genomic mode supports pop_He.");
+    }
+    female_geno_arma = as<arma::mat>(Rcpp::NumericMatrix(female_geno));
+    male_geno_arma   = as<arma::mat>(Rcpp::NumericMatrix(male_geno));
+    if (static_cast<int>(female_geno_arma.n_rows) != n_f) {
+      stop("female_geno must have the same number of rows as gain_mat.");
+    }
+    if (static_cast<int>(male_geno_arma.n_rows) != n_m) {
+      stop("male_geno must have the same number of rows as gain_mat (columns).");
+    }
+    female_geno_ptr = &female_geno_arma;
+    male_geno_ptr   = &male_geno_arma;
   }
 
   arma::ivec female_min_arma = as<arma::ivec>(female_min);
@@ -710,6 +785,9 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
       stop_window,
       stop_eps,
       warmup_iter,
+      diversity_metric,
+      female_geno_ptr,
+      male_geno_ptr,
       rng
     );
 

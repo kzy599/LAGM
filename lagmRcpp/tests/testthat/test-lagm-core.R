@@ -83,7 +83,8 @@ test_that("optimizer respects contribution bounds", {
     stop_eps = 1e-6,
     warmup_iter = 50L,
     n_pop = 20L,
-    n_threads = 2L
+    n_threads = 2L,
+    diversity_metric = 0L  # pair_mean; no geno matrices provided
   )
 
   expect_equal(length(res$female_index), 4L)
@@ -184,7 +185,247 @@ test_that("lagm_plan runs on generic matrices", {
   expect_true(all(plan$male_id %in% male_ids))
 })
 
-test_that("lagm_mating wrapper works with AlphaSimR", {
+
+test_that("pop_He and pair_mean give different avg_diversity for complementary genotypes", {
+  # Two families:
+  # Family 1: AA x aa  -> per-pair Ho = 1, pop He contribution also includes variance
+  # Family 2: AA x aa  -> same (but illustrates that pop_He sees between-family complement)
+  # More clearly: compare AAxAA (both homozygous ref) vs AAxaa (complementary).
+  # For AAxAA across 2 pairs: per-pair Ho = 0, pop_He = 0
+  # For AAxaa across 2 pairs: per-pair Ho = 1, pop_He = 0.5  (p_bar = 0.5)
+  # Actually let's use Aa x Aa vs AA x aa: both have same per-pair Ho but different pop_He.
+
+  # 1 locus, 2 females, 2 males
+  # Scenario A: Aa x Aa (both pairs): geno_f = 1, geno_m = 1
+  #   Ho = 0.5 + 0.5 - 2*0.5*0.5 = 0.5 for each pair
+  #   pop_He: p_bar = mean((0.5+0.5)/2, (0.5+0.5)/2) = 0.5 -> 2*0.5*0.5 = 0.5
+  # Scenario B: AA x aa + aa x AA: geno_f = c(2,0), geno_m = c(0,2)
+  #   Ho = 1 + 0 - 2*1*0 = 1 for each pair
+  #   pop_He: p_bar = mean((1+0)/2, (0+1)/2) = 0.5 -> 2*0.5*0.5 = 0.5
+
+  # Actually, we need a clearer case. Let's test with multiple loci.
+  # Family 1: homozygous same at locus 1 (both AA) -> p_bar = 1, He = 0
+  # Family 2: homozygous complement at locus 1 (AA vs aa) -> p_bar = 0.5, He = 0.5
+  # Using 2 pairs where pair 1 = AA x AA, pair 2 = aa x aa:
+  #   per-pair Ho: both = 0 -> avg = 0
+  #   pop_He: p_bar = (1 + 0)/2 = 0.5 -> He = 0.5
+
+  # Compare to 2 pairs both Aa x Aa:
+  #   per-pair Ho = 0.5 for each -> avg = 0.5
+  #   pop_He: p_bar = 0.5 -> He = 0.5
+
+  # Setup: 1 locus
+  # Plan 1: female 1 x male 1, female 2 x male 2
+  #   female_geno: row1=2 (AA), row2=0 (aa)
+  #   male_geno:   row1=2 (AA), row2=0 (aa)
+  # Plan 2: female 1 x male 2, female 2 x male 1
+  #   same geno matrices, different pairing
+
+  female_geno_compl <- matrix(c(2, 0), nrow = 2, ncol = 1)  # AA, aa
+  male_geno_compl   <- matrix(c(2, 0), nrow = 2, ncol = 1)  # AA, aa
+
+  # Plan same: pair AA x AA and aa x aa -> per-pair Ho = 0, pop_He = 0.5
+  f_plan_same <- c(0L, 1L)  # female index 0-based
+  m_plan_same <- c(0L, 1L)  # male index 0-based, AA x AA and aa x aa
+
+  # Plan cross: pair AA x aa and aa x AA -> per-pair Ho = 1, pop_He = 0.5
+  f_plan_cross <- c(0L, 1L)
+  m_plan_cross <- c(1L, 0L)  # AA x aa and aa x AA
+
+  gain_mat_2x2 <- matrix(c(1, 1, 1, 1), nrow = 2)
+  div_mat_2x2  <- compute_expected_heterozygosity_cpp(female_geno_compl, male_geno_compl)
+
+  # div_mat_2x2[1,1] = AA x AA => Ho=0; div_mat_2x2[1,2] = AA x aa => Ho=1
+  expect_equal(div_mat_2x2[1, 1], 0)
+  expect_equal(div_mat_2x2[1, 2], 1)
+
+  # diversity_metric = pair_mean (0):
+  # plan same: avg_div = (div[1,1] + div[2,2]) / 2 = (0 + 0) / 2 = 0
+  # plan cross: avg_div = (div[1,2] + div[2,1]) / 2 = (1 + 1) / 2 = 1
+  # => pair_mean differentiates them (Ho-based)
+
+  # diversity_metric = pop_He (1):
+  # plan same: p_bar = ((2+2)/2 + (0+0)/2)/(2*2) = (2+0)/(4) = 0.5 -> He = 0.5
+  # plan cross: p_bar = ((2+0)/2 + (0+2)/2)/(2*2) = (1+1)/4 = 0.5 -> He = 0.5
+  # => pop_He gives same result for both plans at this 1 locus
+
+  # Let's instead test the key Wahlund scenario with 1 locus, 2 families:
+  # "same" plan: AA x AA and aa x aa  (family-internal pure; complementary between families)
+  # "hetero" plan: Aa x Aa and Aa x Aa (all mixed)
+  # pop_He: same plan -> p_bar = 0.5 -> He = 0.5
+  #         hetero plan -> p_bar = 0.5 -> He = 0.5  (same!)
+  # per-pair Ho: same plan -> 0; hetero plan -> 0.5
+  # So pop_He does NOT differentiate "complementary" vs "all-het",
+  # but per-pair Ho does. That matches the Wahlund relationship:
+  # H_T = H_S + 2*Var(p); if p_bar is same, H_T is same.
+  # The key is: pop_He sees the population level, not within-family structure.
+
+  # For our test: verify pop_He = 0.5 for "same" plan (AA x AA, aa x aa)
+  # and that pair_mean Ho = 0 for the same plan.
+  female_geno_test <- matrix(c(2, 0), nrow = 2, ncol = 1)
+  male_geno_test   <- matrix(c(2, 0), nrow = 2, ncol = 1)
+  gain_test        <- matrix(c(1, 1, 1, 1), nrow = 2)
+  div_test         <- compute_expected_heterozygosity_cpp(female_geno_test, male_geno_test)
+
+  # "same" plan: f[0] x m[0] (AA x AA), f[1] x m[1] (aa x aa)
+  res_pair_mean <- optimize_mating_plan_cpp(
+    gain_mat = gain_test,
+    div_mat  = div_test,
+    female_min = c(1L, 1L),
+    female_max = c(1L, 1L),
+    male_min   = c(1L, 1L),
+    male_max   = c(1L, 1L),
+    n_crosses  = 2L,
+    opt_mode   = 2L,
+    n_iter     = 50L,
+    init_prob  = 0.8,
+    cooling_rate = 0.995,
+    stop_window = 40L,
+    stop_eps    = 1e-6,
+    warmup_iter = 20L,
+    n_pop       = 10L,
+    n_threads   = 1L,
+    diversity_metric = 0L  # pair_mean
+  )
+
+  res_pop_he <- optimize_mating_plan_cpp(
+    gain_mat = gain_test,
+    div_mat  = div_test,
+    female_min = c(1L, 1L),
+    female_max = c(1L, 1L),
+    male_min   = c(1L, 1L),
+    male_max   = c(1L, 1L),
+    n_crosses  = 2L,
+    opt_mode   = 2L,
+    n_iter     = 50L,
+    init_prob  = 0.8,
+    cooling_rate = 0.995,
+    stop_window = 40L,
+    stop_eps    = 1e-6,
+    warmup_iter = 20L,
+    n_pop       = 10L,
+    n_threads   = 1L,
+    diversity_metric = 1L,  # pop_He
+    female_geno = female_geno_test,
+    male_geno   = male_geno_test
+  )
+
+  # pair_mean maximizes Ho: the cross plan (AA x aa, aa x AA) yields Ho=1
+  # So pair_mean should find the cross plan and report avg_diversity ~ 1
+  expect_true(res_pair_mean$avg_diversity >= 0.9)
+
+  # pop_He: both plans yield p_bar = 0.5 -> He = 0.5 for this 1-locus, 2-pair setup
+  expect_equal(res_pop_he$avg_diversity, 0.5, tolerance = 1e-6)
+})
+
+test_that("pop_He is rejected in relationship mode", {
+  ids    <- c("i1", "i2", "i3", "i4")
+  rel    <- diag(4)
+  ebv    <- c(1.0, 1.5, 2.0, 2.5)
+
+  expect_error(
+    lagm_plan(
+      individual_ids = ids,
+      female_ids     = c("i1", "i2"),
+      male_ids       = c("i3", "i4"),
+      ebv_vector     = ebv,
+      n_crosses      = 2L,
+      lookahead_generations = 1L,
+      diversity_mode = "relationship",
+      relationship_matrix = rel,
+      diversity_metric = "pop_He"
+    ),
+    regexp = "pop_He"
+  )
+})
+
+test_that("lagm_plan works with diversity_metric = pop_He in genomic mode", {
+  ids        <- c("i1", "i2", "i3", "i4")
+  female_ids <- c("i1", "i2")
+  male_ids   <- c("i3", "i4")
+  ebv        <- c(1.0, 1.5, 2.0, 2.5)
+
+  geno <- matrix(
+    c(0, 1, 2,
+      1, 1, 0,
+      2, 0, 1,
+      1, 2, 1),
+    nrow = 4,
+    byrow = TRUE
+  )
+
+  plan_pop_he <- lagm_plan(
+    individual_ids = ids,
+    female_ids     = female_ids,
+    male_ids       = male_ids,
+    ebv_vector     = ebv,
+    n_crosses      = 2L,
+    lookahead_generations = 2L,
+    female_min = c(1L, 0L),
+    female_max = c(2L, 1L),
+    male_min   = c(0L, 1L),
+    male_max   = c(1L, 2L),
+    diversity_mode   = "genomic",
+    geno_matrix      = geno,
+    diversity_metric = "pop_He",
+    n_iter       = 100L,
+    init_prob    = 0.8,
+    cooling_rate = 0.995,
+    stop_window  = 80L,
+    stop_eps     = 1e-6,
+    warmup_iter  = 40L,
+    n_pop        = 20L,
+    n_threads    = 2L
+  )
+
+  expect_equal(nrow(plan_pop_he), 2L)
+  expect_true(all(plan_pop_he$female_id %in% female_ids))
+  expect_true(all(plan_pop_he$male_id %in% male_ids))
+})
+
+test_that("lagm_plan works with diversity_metric = pair_mean (backward compat) in genomic mode", {
+  ids        <- c("i1", "i2", "i3", "i4")
+  female_ids <- c("i1", "i2")
+  male_ids   <- c("i3", "i4")
+  ebv        <- c(1.0, 1.5, 2.0, 2.5)
+
+  geno <- matrix(
+    c(0, 1, 2,
+      1, 1, 0,
+      2, 0, 1,
+      1, 2, 1),
+    nrow = 4,
+    byrow = TRUE
+  )
+
+  plan_pair_mean <- lagm_plan(
+    individual_ids = ids,
+    female_ids     = female_ids,
+    male_ids       = male_ids,
+    ebv_vector     = ebv,
+    n_crosses      = 2L,
+    lookahead_generations = 2L,
+    female_min = c(1L, 0L),
+    female_max = c(2L, 1L),
+    male_min   = c(0L, 1L),
+    male_max   = c(1L, 2L),
+    diversity_mode   = "genomic",
+    geno_matrix      = geno,
+    diversity_metric = "pair_mean",
+    n_iter       = 100L,
+    init_prob    = 0.8,
+    cooling_rate = 0.995,
+    stop_window  = 80L,
+    stop_eps     = 1e-6,
+    warmup_iter  = 40L,
+    n_pop        = 20L,
+    n_threads    = 2L
+  )
+
+  expect_equal(nrow(plan_pair_mean), 2L)
+  expect_true(all(plan_pair_mean$female_id %in% female_ids))
+  expect_true(all(plan_pair_mean$male_id %in% male_ids))
+})
   skip_if_not_installed("AlphaSimR")
 
   founder_pop <- AlphaSimR::quickHaplo(nInd = 12, nChr = 2, segSites = 20)
