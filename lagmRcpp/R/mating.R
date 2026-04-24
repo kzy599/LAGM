@@ -6,6 +6,15 @@
 # - ebv_vector: EBV per individual (same order as individual_ids)
 # - either geno_matrix (genomic mode) or relationship_matrix (relationship mode)
 #
+# Optional `diversity_metric`: either "pop_He" (default) or "pair_mean".
+#   - "pop_He" (genomic mode only) measures diversity at the population
+#     level via mean(2 * p_bar * (1 - p_bar)), where p_bar is the mean
+#     offspring allele frequency across all selected pairs. This captures
+#     the between-family allele-frequency variance component
+#     (Wahlund: H_T = H_S + 2 * Var(p)).
+#   - "pair_mean" reverts to the legacy per-pair Ho averaging.
+#   - In relationship mode, only "pair_mean" is allowed.
+#
 # This function returns an optimized mating plan only (no simulation coupling).
 lagm_plan <- function(individual_ids,
                       female_ids,
@@ -115,7 +124,18 @@ lagm_plan <- function(individual_ids,
 #
   if (is.null(input$base_diversity)) {
     if (identical(diversity_mode, "genomic")) {
-      base_div_value <- mean(colMeans(input$geno_matrix == 1, na.rm = TRUE))
+      if (identical(diversity_metric, "pop_He")) {
+        # pop_He flavor: use population-level allele frequency to derive He,
+        # so that base_div is on the same scale as the SA's avg_diversity
+        # in pop_He mode (mean(2 * p_bar * (1 - p_bar))).
+        # geno_matrix entries are dosages in {0, 1, 2}, so dividing the
+        # column means by 2 yields allele frequencies p_bar per locus.
+        p_bar <- colMeans(input$geno_matrix, na.rm = TRUE) / 2
+        base_div_value <- mean(2 * p_bar * (1 - p_bar))
+      } else {
+        # pair_mean (Ho) flavor: average observed heterozygosity.
+        base_div_value <- mean(colMeans(input$geno_matrix == 1, na.rm = TRUE))
+      }
 
       #base_div_value <- mean(div_mat)
       #base_div_value <- sum(div_mat)/(4*n_crosses^2)
@@ -209,6 +229,7 @@ lagm_plan <- function(individual_ids,
 }
 
 # Optional wrapper for AlphaSimR users: applies lagm_plan() then runs makeCross().
+# `diversity_metric` is forwarded to lagm_plan(); see its definition for details.
 lagm_mating <- function(candidate,
                         females,
                         males,
