@@ -14,17 +14,20 @@ look-ahead objective
 score = log(Gnorm) + t · log(Dnorm)
 ```
 
-where `t = lookahead_generations`, and `Gnorm`, `Dnorm` are gain and
-diversity normalised against the empirical bounds discovered by two
-preliminary SA runs (max gain only, max diversity only).
+where `t = lookahead_generations`, and `Gnorm` and `Dnorm` are gain
+and diversity normalised against the empirical bounds discovered by
+two preliminary SA runs (max gain only, max diversity only).
 
-`Dnorm` is an extreme-value normalisation that is equivalent in spirit
-to the classical decay map `(1 − 1/(2 Ne))^t`: in the normalised space,
-a 1% drop in relative diversity per generation must be compensated by a
-roughly `t%` lift in current `Gnorm` over `t` generations for the
-trade-off to break even. Increasing `t` therefore mechanically
-re-weights the objective toward diversity retention without changing
-the formula.
+The diversity quantity entering the objective is `D = He / He_base`,
+i.e. the per-generation diversity retention rate. Under classical
+quantitative-genetics theory `D` corresponds to `(1 − 1/(2 Ne))`, so
+`D^t` is the cumulative retention after `t` generations and is the
+quantity that is normalised into `Dnorm`. Because the score is
+`log(Gnorm) + t · log(Dnorm)`, a **1% drop in cumulative diversity at
+the t-generation horizon** must be compensated by roughly **t% extra
+current `Gnorm`** for the trade-off to break even. Increasing `t`
+therefore mechanically re-weights the objective toward long-horizon
+diversity retention without changing the formula.
 
 ## Installation
 
