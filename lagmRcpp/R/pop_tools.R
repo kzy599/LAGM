@@ -95,3 +95,45 @@ compute_candidate_gebv <- function(pheno_file,
   data.table::setnames(gebv_dt, old = names(gebv_dt)[names(gebv_dt) == "Prediction"], new = "GEBV")
   gebv_dt
 }
+
+# VanRaden Method 2 genomic relationship matrix.
+#
+# G = Z W Z' / m_eff, where Z = M - 2p, columns of Z are scaled by
+# 1 / sqrt(2 p (1 - p)), and m_eff is the number of polymorphic loci kept
+# after MAF filtering.  Loci with heterozygosity below 2*min_maf*(1-min_maf)
+# are dropped to avoid division by ~0.
+#
+# `geno_matrix` should have rows = individuals (rownames are individual IDs)
+# and columns = SNP markers, coded as 0/1/2 dosages of the alternate allele.
+# Returns a square matrix with row/column names equal to rownames(geno_matrix).
+compute_vr2_grm <- function(geno_matrix, min_maf = 1e-3) {
+  geno <- as.matrix(geno_matrix)
+  if (!is.numeric(geno)) {
+    stop("geno_matrix must be numeric (0/1/2 dosages).")
+  }
+  if (nrow(geno) == 0L || ncol(geno) == 0L) {
+    stop("geno_matrix must have at least one row and one column.")
+  }
+
+  p <- colMeans(geno, na.rm = TRUE) / 2
+  het <- 2 * p * (1 - p)
+  keep <- het > 2 * min_maf * (1 - min_maf)
+  if (sum(keep) < 10L) {
+    stop("Too few polymorphic loci for VR2 GRM (need at least 10 after MAF filter).")
+  }
+
+  geno_sub <- geno[, keep, drop = FALSE]
+  p_sub    <- p[keep]
+  het_sub  <- 2 * p_sub * (1 - p_sub)
+
+  Z <- sweep(geno_sub, 2, 2 * p_sub, FUN = "-")
+  Z <- sweep(Z,        2, sqrt(het_sub), FUN = "/")
+  G <- tcrossprod(Z) / sum(keep)
+
+  ids <- rownames(geno_matrix)
+  if (!is.null(ids)) {
+    rownames(G) <- ids
+    colnames(G) <- ids
+  }
+  G
+}

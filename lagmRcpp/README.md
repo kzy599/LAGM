@@ -35,6 +35,38 @@ Core inputs:
 - diversity input:
   - `diversity_mode = "genomic"` + `geno_matrix`
   - `diversity_mode = "relationship"` + `relationship_matrix`
+- diversity metric (`diversity_metric`):
+  - `"pop_He"` (default, genomic mode): population-level expected
+    heterozygosity, `mean(2 * p̄ * (1 − p̄))`. Captures the
+    between-family allele-frequency variance component
+    (Wahlund: `H_T = H_S + 2·Var(p)`) and is invariant to the within-plan
+    pairing.
+  - `"pair_mean"` (genomic mode): legacy per-pair Ho average; encodes
+    pair-level signal directly inside Stage A, so no Stage B is needed.
+  - `"pop_K"` (relationship mode, default and only choice): plan-level
+    group coancestry analogue of `pop_He`,
+    `D = 1 − x' K x / (4 M^2)`, where `x` is the contribution multiset
+    over the candidate parents and `K` is the user-supplied
+    relationship matrix. Like `pop_He`, this is invariant to pairing.
+- Stage B pair allocation (`mate_allocation_pct`, `mate_kinship_matrix`):
+  - `pop_He` / `pop_K` modes: Stage A only fixes the contribution
+    multiset (`who breeds, how many times`); Stage B then assigns the
+    actual `(female, male)` pairs.
+    - `mate_allocation_pct = NULL` (default) or `"rand"`: random pairing
+      (matches the paper's GOCS default; back-compatible).
+    - `mate_allocation_pct = 100`: minimise mean within-pair kinship
+      via the Hungarian algorithm (`F_min`).
+    - `mate_allocation_pct = 0`: maximise mean within-pair kinship
+      (`F_max`).
+    - Numeric `N` in `(0, 100)`: greedy swap-based interpolation toward
+      `F_target = F_min + (1 − N/100) · (F_max − F_min)`.
+  - `pair_mean` mode: Stage A already optimises pair-level signal;
+    `mate_allocation_pct` is ignored with a warning.
+  - `mate_kinship_matrix` overrides the kinship matrix used by Stage B.
+    Defaults: VanRaden Method 2 GRM from `geno_matrix` for genomic mode;
+    user-supplied `relationship_matrix` for relationship mode.
+  - The returned `data.table` includes a `stage_b_F` column with the
+    realised Stage B mean kinship (`NA` for `"rand"` and Ho).
 
 ### `lagm_mating()`
 

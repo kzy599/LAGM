@@ -320,25 +320,31 @@ test_that("pop_He incremental sum_p update matches from-scratch recompute", {
   expect_equal(res$avg_diversity, he_recomputed, tolerance = 1e-10)
 })
 
-test_that("pop_He is rejected in relationship mode", {
+test_that("pop_He requested in relationship mode is silently coerced to pop_K", {
+  # Per the new two-stage design, relationship mode always uses pop_K
+  # (population-level group coancestry); pop_He / pair_mean requests are
+  # coerced rather than rejected.
   ids    <- c("i1", "i2", "i3", "i4")
   rel    <- diag(4)
   ebv    <- c(1.0, 1.5, 2.0, 2.5)
 
-  expect_error(
-    lagm_plan(
-      individual_ids = ids,
-      female_ids     = c("i1", "i2"),
-      male_ids       = c("i3", "i4"),
-      ebv_vector     = ebv,
-      n_crosses      = 2L,
-      lookahead_generations = 1L,
-      diversity_mode = "relationship",
-      relationship_matrix = rel,
-      diversity_metric = "pop_He"
-    ),
-    regexp = "pop_He"
+  plan_dt <- lagm_plan(
+    individual_ids = ids,
+    female_ids     = c("i1", "i2"),
+    male_ids       = c("i3", "i4"),
+    ebv_vector     = ebv,
+    n_crosses      = 2L,
+    lookahead_generations = 1L,
+    diversity_mode = "relationship",
+    relationship_matrix = rel,
+    diversity_metric = "pop_He",
+    n_iter         = 50L,
+    n_pop          = 5L,
+    n_threads      = 1L
   )
+
+  expect_true(is.data.frame(plan_dt))
+  expect_true("stage_b_F" %in% names(plan_dt))
 })
 
 test_that("lagm_plan works with diversity_metric = pop_He in genomic mode", {

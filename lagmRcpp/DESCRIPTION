@@ -17,7 +17,9 @@ Imports:
     methods,
     Rcpp,
     stats,
-    utils
+    utils,
+    clue,
+    data.table
 LinkingTo:
     Rcpp,
     RcppArmadillo
