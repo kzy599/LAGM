@@ -125,7 +125,7 @@ test_that("Ho mode warns on mate_allocation_pct and ignores it", {
       mate_allocation_pct = 50,
       n_iter = 100L, n_pop = 3L, n_threads = 1L
     ),
-    regexp = "Ho already encodes pair-level signal"
+    regexp = "already encodes pair-level signal"
   )
   expect_true(all(is.finite(plan_dt$stage_b_F)))
 })

@@ -6,27 +6,44 @@
 # - ebv_vector: EBV per individual (same order as individual_ids)
 # - either geno_matrix (genomic mode) or relationship_matrix (relationship mode)
 #
-# Optional `diversity_metric`: one of "pop_He" (default), "pair_mean", or
-# "pop_K".  Each metric pairs with a specific diversity quantity D used
-# inside the SA score `log(Gnorm) + t * log(Dnorm)`:
-#   - "pair_mean" — observed heterozygosity (Ho) averaged across pairs.
-#     In genomic mode D = mean_k(p_f + p_m - 2 * p_f * p_m); in
-#     relationship mode D = mean_k(1 - A[f, m] / 2).  Pair identity is
-#     encoded directly, so SA produces a meaningful pair plan in one pass.
-#   - "pop_He" (genomic mode only) — population-level expected
-#     heterozygosity D = mean_l(2 * p_bar_l * (1 - p_bar_l)) with
-#     p_bar_l = mean over pairs of (p_f + p_m) / 2.  Captures the
-#     between-family allele-frequency variance component (Wahlund:
-#     H_T = H_S + 2 * Var(p_bar)).  Invariant to pair assignment for a
-#     fixed contribution; pair-level optimisation is delegated to Stage B.
-#   - "pop_K" (relationship mode only) — population-level group
-#     coancestry, D = 1 - x' K x / (4 M^2), where x is the plan's
-#     contribution multiset and K is the user-supplied relationship
-#     matrix.  Like "pop_He", invariant to pair assignment; Stage B
-#     handles pairing.
-#   - In relationship mode, "pop_K" is the only supported metric; passing
-#     any other metric raises a warning and the value is coerced to
-#     "pop_K".
+# `diversity_metric`: one of four values, organised on two axes
+# (pair / pop) x (genomic / relationship).  Each metric defines the
+# diversity quantity D used inside the SA score
+# `log(Gnorm) + t * log((D / D0)^t_norm)`.
+#
+#   ----------------------------------------------------------------------
+#   metric     mode          D                                  Stage B
+#   ----------------------------------------------------------------------
+#   pair_He    genomic       mean_k mean_l(p_f+p_m - 2 p_f p_m) no
+#              (per-pair Ho across the M selected matings)
+#   pop_He     genomic       mean_l(2 p_bar (1 - p_bar))        yes
+#              (Wahlund population-level He of the offspring pool)
+#   pair_K     relationship  mean_k(1 - A[f_k, m_k] / 2)        no
+#              (per-pair "1 - expected progeny F"; the relationship-
+#               matrix counterpart of pair_He)
+#   pop_K      relationship  1 - x' K x / (4 M^2)               yes
+#              (group coancestry of the contribution multiset x)
+#   ----------------------------------------------------------------------
+#
+# Pair-level metrics (`pair_He`, `pair_K`) encode pair identity directly
+# in D, so SA's swap mutation has signal and a single pass already
+# yields a meaningful pair plan -- no Stage B is needed.  This is LAGM's
+# recommended default.  Population-level metrics (`pop_He`, `pop_K`) are
+# invariant to pair assignment within a fixed contribution multiset, so
+# pair-level optimisation must be delegated to Stage B (Hungarian pair
+# allocation).
+#
+# Default behaviour: when `diversity_metric` is NULL (the default),
+# LAGM picks the pair-level metric matching the mode -- `pair_He` in
+# genomic mode and `pair_K` in relationship mode.
+#
+# Backward compatibility: the legacy name `"pair_mean"` is accepted as
+# an alias for `"pair_He"` and emits a deprecation warning.
+#
+# mode x metric compatibility:
+#   genomic       -> {pair_He, pop_He}
+#   relationship  -> {pair_K,  pop_K}
+# Mixing across that boundary raises an error (no silent coercion).
 #
 # Stage B (pair allocation):
 #   `mate_allocation_pct` controls how the M selected females are paired
@@ -37,9 +54,9 @@
 #     - 0:   maximise mean within-pair kinship (Hungarian)
 #     - N in (0, 100): swap-based interpolation toward
 #         F_target = F_min + (1 - N/100) * (F_max - F_min)
-#   Stage B only runs in "pop_He" / "pop_K" modes (Ho = "pair_mean" already
-#   encodes pair-level signal in Stage A and ignores this argument with
-#   a warning).
+#   Stage B only runs in pop-level modes (`pop_He` / `pop_K`).  Pair-level
+#   modes (`pair_He` / `pair_K`) already encode pair-level signal in
+#   Stage A and ignore `mate_allocation_pct` with a warning.
 #   `mate_kinship_matrix` lets the caller override the kinship matrix used
 #   by Stage B.  Defaults: VanRaden Method 2 GRM from `geno_matrix` for
 #   genomic mode, the user-supplied `relationship_matrix` for relationship
@@ -48,15 +65,16 @@
 # Returned data.table columns:
 #   - `female_id`, `male_id`: the final mating plan (after Stage B if
 #     applied).
-#   - `score`: per-pair Stage A score; only meaningful for "pair_mean"
-#     (NA for "pop_He" / "pop_K").
+#   - `score`: per-pair Stage A score; meaningful for the pair-level
+#     metrics `pair_He` / `pair_K` (NA for `pop_He` / `pop_K`, where
+#     SA's objective is the plan-level pop quantity, not a per-pair sum).
 #   - `pair_gain`: diagnostic per-pair (EBV_f + EBV_m) / 2.
 #   - `pair_diversity`: diagnostic per-pair quantity from the original
-#     div_mat.  In "pop_He" / "pop_K" modes this is *not* the SA's
+#     div_mat.  In `pop_He` / `pop_K` modes this is *not* the SA's
 #     optimisation target (it is per-pair Ho or 1 - A[f, m] / 2).
 #   - `stage_b_F`: mean kinship `mean(K[f, m])` over the final plan,
 #     computed under the same K used (or that would be used) by Stage B.
-#     Reported in **all three metrics** (Ho mode included, as a
+#     Reported in **all four metrics** (pair-level included, as a
 #     diagnostic) so that the headline progeny-inbreeding indicator is
 #     directly comparable across metrics.  Only NA when no kinship
 #     matrix can be resolved (e.g. genomic mode with a degenerate
@@ -77,7 +95,7 @@ lagm_plan <- function(individual_ids,
                       base_diversity = NULL,
                       geno_matrix = NULL,
                       relationship_matrix = NULL,
-                      diversity_metric = c("pop_He", "pair_mean", "pop_K"),
+                      diversity_metric = NULL,
                       mate_allocation_pct = NULL,
                       mate_kinship_matrix = NULL,
                       n_iter = 2000L,
@@ -91,38 +109,62 @@ lagm_plan <- function(individual_ids,
                       n_pop = 50L,
                       n_threads = 4L) {
   diversity_mode <- match.arg(diversity_mode)
-  diversity_metric <- match.arg(diversity_metric)
 
-  # In relationship mode, the only meaningful metric is the pop-level
-  # group coancestry pop_K.  pair_mean / pop_He requests are coerced
-  # with an explicit warning so the user is aware of the change.
-  if (identical(diversity_mode, "relationship")) {
-    if (!identical(diversity_metric, "pop_K")) {
-      warning(sprintf(
-        "diversity_metric = \"%s\" is not supported in relationship mode; coercing to \"pop_K\".",
-        diversity_metric
-      ))
-      diversity_metric <- "pop_K"
-    }
-  } else {
-    # Genomic mode: pop_K not supported (pop_K requires a relationship matrix).
-    if (identical(diversity_metric, "pop_K")) {
-      stop("diversity_metric = \"pop_K\" is only available in diversity_mode = \"relationship\".")
-    }
+  # --- Resolve diversity_metric --------------------------------------------
+  # Mode-aware default: pair-level metric matching the mode.  This puts the
+  # LAGM-philosophy default (pair_He / pair_K) front and centre.
+  if (is.null(diversity_metric)) {
+    diversity_metric <- if (identical(diversity_mode, "genomic")) "pair_He" else "pair_K"
+  }
+  diversity_metric <- match.arg(
+    diversity_metric,
+    c("pair_He", "pop_He", "pair_K", "pop_K", "pair_mean")
+  )
+  # Backward-compat alias: pair_mean -> pair_He (with a deprecation warning).
+  if (identical(diversity_metric, "pair_mean")) {
+    warning("'pair_mean' is deprecated; please use 'pair_He'.")
+    diversity_metric <- "pair_He"
   }
 
-  diversity_metric_int <- switch(diversity_metric,
-                                 pair_mean = 0L,
-                                 pop_He    = 1L,
-                                 pop_K     = 2L)
+  # mode x metric compatibility: hard error on incompatible combinations.
+  if (identical(diversity_mode, "genomic") &&
+      diversity_metric %in% c("pair_K", "pop_K")) {
+    stop(sprintf(
+      "diversity_metric = '%s' requires diversity_mode = 'relationship'.",
+      diversity_metric
+    ))
+  }
+  if (identical(diversity_mode, "relationship") &&
+      diversity_metric %in% c("pair_He", "pop_He")) {
+    stop(sprintf(
+      "diversity_metric = '%s' requires diversity_mode = 'genomic'.",
+      diversity_metric
+    ))
+  }
 
-  # Stage B is only meaningful for pop-level diversity targets (pop_He / pop_K).
-  # In pair_mean mode the SA already encodes pair-level signal, so we
-  # ignore mate_allocation_pct and warn.
-  if (identical(diversity_metric, "pair_mean") &&
+  # C++ integer encoding:
+  #   0 = pair_He, 1 = pop_He, 2 = pop_K, 3 = pair_K
+  # (0/1/2 unchanged from before; 3 is new and reuses the metric == 0
+  # `sum_div / n` fall-through inside evaluate_plan_cpp -- div_mat already
+  # holds the per-pair `1 - A[f, m] / 2` quantity for relationship mode.)
+  diversity_metric_int <- switch(diversity_metric,
+                                 pair_He = 0L,
+                                 pop_He  = 1L,
+                                 pop_K   = 2L,
+                                 pair_K  = 3L)
+
+  # Stage B is only meaningful for pop-level diversity targets
+  # (pop_He / pop_K).  In pair-level modes (pair_He / pair_K) the SA
+  # already encodes pair-level signal directly, so we ignore
+  # `mate_allocation_pct` and emit a warning.
+  is_pair_metric <- diversity_metric %in% c("pair_He", "pair_K")
+  if (is_pair_metric &&
       !is.null(mate_allocation_pct) &&
       !identical(mate_allocation_pct, "rand")) {
-    warning("Ho already encodes pair-level signal; mate_allocation_pct ignored.")
+    warning(sprintf(
+      "%s already encodes pair-level signal; mate_allocation_pct ignored.",
+      diversity_metric
+    ))
     mate_allocation_pct <- "rand"
   }
 
@@ -208,11 +250,11 @@ lagm_plan <- function(individual_ids,
         p_bar <- colMeans(input$geno_matrix, na.rm = TRUE) / 2
         base_div_value <- mean(2 * p_bar * (1 - p_bar))
       } else {
-        # pair_mean (Ho) flavor: average observed heterozygosity.
+        # pair_He (Ho) flavor: average observed heterozygosity.
         base_div_value <- mean(colMeans(input$geno_matrix == 1, na.rm = TRUE))
       }
     } else {
-      # Relationship / pop_K: 1 - mean(K[upper.tri, diag = TRUE]) is the
+      # Relationship mode (pair_K / pop_K): 1 - mean(K/2) is the
       # group-coancestry equivalent of the genomic He baseline.
       all_div_mat <- input$relationship_matrix / 2
       base_div_value <- 1 - mean(all_div_mat, na.rm = TRUE)
@@ -339,8 +381,9 @@ lagm_plan <- function(individual_ids,
     }
   }
 
-  if (identical(diversity_metric, "pair_mean")) {
-    # Ho: SA already produced a specific (female, male) plan; keep it.
+  if (is_pair_metric) {
+    # Pair-level metrics (pair_He / pair_K): SA already produced a
+    # specific (female, male) plan; keep it as-is.
     final_female_id <- female_ids_in_plan
     final_male_id   <- male_ids_in_plan
   } else {
@@ -380,11 +423,10 @@ lagm_plan <- function(individual_ids,
   male_pos   <- match(final_male_id,   input$male_ids)
   pair_gain_out <- gain_mat[cbind(female_pos, male_pos)]
   pair_div_out  <- div_mat[cbind(female_pos, male_pos)]
-  # The aggregate `score` reported per row is most useful in pair_mean mode
-  # (where SA optimised it directly); in pop_He / pop_K modes it is not the
-  # quantity SA maximised.  We keep it for backward compatibility with the
-  # previous return shape.
-  score_out <- if (identical(diversity_metric, "pair_mean")) {
+  # The aggregate `score` reported per row is most useful in pair-level
+  # modes (pair_He / pair_K) where SA optimised it directly; in pop_He /
+  # pop_K modes it is not the quantity SA maximised, so we report NA.
+  score_out <- if (is_pair_metric) {
     sol_final$score[match(seq_along(final_female_id), seq_along(sol_final$score))]
   } else {
     rep(NA_real_, length(final_female_id))
@@ -414,7 +456,7 @@ lagm_mating <- function(candidate,
                         diversity_mode = c("genomic", "relationship"),
                         base_diversity = NULL,
                         relationship_matrix = NULL,
-                        diversity_metric = c("pop_He", "pair_mean", "pop_K"),
+                        diversity_metric = NULL,
                         mate_allocation_pct = NULL,
                         mate_kinship_matrix = NULL,
                         n_iter = 2000L,

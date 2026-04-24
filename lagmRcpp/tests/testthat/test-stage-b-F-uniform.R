@@ -82,7 +82,7 @@ test_that("stage_b_F is comparable across pair_mean / pop_He / pop_He+pct=100", 
   expect_true(is.finite(F_pair))
 })
 
-test_that("relationship mode coerces pop_He to pop_K with a warning", {
+test_that("relationship mode rejects pop_He with a hard error", {
   set.seed(2026L)
   n_cand <- 80L
   ids        <- sprintf("ind%03d", seq_len(n_cand))
@@ -95,8 +95,8 @@ test_that("relationship mode coerces pop_He to pop_K with a warning", {
   rel <- tcrossprod(M) / 12 + diag(0.5, n_cand)
   rownames(rel) <- colnames(rel) <- ids
 
-  expect_warning(
-    plan_dt <- lagm_plan(
+  expect_error(
+    lagm_plan(
       individual_ids        = ids,
       female_ids            = female_ids,
       male_ids              = male_ids,
@@ -115,16 +115,6 @@ test_that("relationship mode coerces pop_He to pop_K with a warning", {
       n_pop                 = 5L,
       n_threads             = 1L
     ),
-    regexp = "coercing to \"pop_K\""
+    regexp = "pop_He"
   )
-
-  # If coercion to pop_K succeeded, the relationship K (= rel) was
-  # available, so the diagnostic stage_b_F must be finite.
-  expect_true(all(is.finite(plan_dt$stage_b_F)))
-
-  # And the Stage B Hungarian-min objective should match the mean of
-  # rel[f, m] over the returned plan (i.e. the diagnostic stage_b_F is
-  # computed under the same K = rel that Stage B used).
-  manual_F <- mean(rel[cbind(plan_dt$female_id, plan_dt$male_id)])
-  expect_equal(unique(plan_dt$stage_b_F), manual_F, tolerance = 1e-10)
 })
