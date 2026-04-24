@@ -196,6 +196,18 @@ inline double he_from_sum_p(const arma::rowvec& sum_p, unsigned int n) {
   return arma::mean(2.0 * p_bar % (1.0 - p_bar));
 }
 
+// Plan-level group coancestry diversity (pop_K): D = 1 - x' K x / (4 M^2),
+// where x is the contribution multiset (length n_f + n_m) of the plan and
+// K is the (n_f + n_m) x (n_f + n_m) block kinship matrix
+// [K_ff K_fm; K_mf K_mm] sliced from the user's relationship matrix.
+inline double pop_k_div_from_x(const arma::vec& x,
+                               const arma::mat& K_full,
+                               unsigned int n) {
+  const double M = static_cast<double>(n);
+  const double xKx = arma::dot(x, K_full * x);
+  return 1.0 - xKx / (4.0 * M * M);
+}
+
 double evaluate_plan_cpp(const arma::uvec& female_plan,
                          const arma::uvec& male_plan,
                          const arma::mat& gain_mat,
@@ -211,6 +223,8 @@ double evaluate_plan_cpp(const arma::uvec& female_plan,
                          const arma::mat* female_geno_ptr = nullptr,
                          const arma::mat* male_geno_ptr = nullptr,
                          const arma::rowvec* sum_p_ptr = nullptr,
+                         const arma::mat* K_full_ptr = nullptr,
+                         const arma::vec* x_ptr = nullptr,
                          double* avg_gain_out = nullptr,
                          double* avg_div_out = nullptr) {
   double sum_gain = 0.0;
@@ -230,6 +244,8 @@ double evaluate_plan_cpp(const arma::uvec& female_plan,
   } else if (diversity_metric == 1 && female_geno_ptr != nullptr && male_geno_ptr != nullptr) {
     avg_div = compute_population_He_from_plan(female_plan, male_plan,
                                               *female_geno_ptr, *male_geno_ptr);
+  } else if (diversity_metric == 2 && K_full_ptr != nullptr && x_ptr != nullptr) {
+    avg_div = pop_k_div_from_x(*x_ptr, *K_full_ptr, n);
   } else {
     avg_div = sum_div / n;
   }
@@ -280,6 +296,7 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
                            const int diversity_metric,
                            const arma::mat* female_geno_ptr,
                            const arma::mat* male_geno_ptr,
+                           const arma::mat* K_full_ptr,
                            RNG& rng) {
   const int n_f = gain_mat.n_rows;
   const int n_m = gain_mat.n_cols;
@@ -301,6 +318,21 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
     }
   }
 
+  // Maintain running contribution vector x for pop_K mode (length n_f + n_m).
+  // Block layout: indices [0, n_f) for females, [n_f, n_f + n_m) for males.
+  // Swap moves do not change x; contribution-shift moves update O(1) entries.
+  arma::vec current_x;
+  if (diversity_metric == 2 && K_full_ptr != nullptr) {
+    current_x = arma::vec(static_cast<arma::uword>(n_f) + static_cast<arma::uword>(n_m),
+                          arma::fill::zeros);
+    for (unsigned int k = 0; k < female_plan.n_elem; ++k) {
+      current_x[female_plan[k]] += 1.0;
+    }
+    for (unsigned int k = 0; k < male_plan.n_elem; ++k) {
+      current_x[static_cast<arma::uword>(n_f) + male_plan[k]] += 1.0;
+    }
+  }
+
   auto propose_mutation = [&](const arma::uvec& in_female_plan,
                               const arma::uvec& in_male_plan,
                               const arma::ivec& in_female_counts,
@@ -309,7 +341,10 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
                               arma::uvec& out_male_plan,
                               arma::ivec& out_female_counts,
                               arma::ivec& out_male_counts,
-                              arma::rowvec& out_delta_sum_p) -> bool {
+                              arma::rowvec& out_delta_sum_p,
+                              int& out_x_idx_A,
+                              int& out_x_idx_B,
+                              int& out_x_amount) -> bool {
     out_female_plan = in_female_plan;
     out_male_plan = in_male_plan;
     out_female_counts = in_female_counts;
@@ -318,6 +353,9 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
       out_delta_sum_p.set_size(female_geno_ptr->n_cols);
       out_delta_sum_p.zeros();
     }
+    out_x_idx_A = -1;
+    out_x_idx_B = -1;
+    out_x_amount = 0;
 
     std::bernoulli_distribution coin_swap(swap_prob);
     std::bernoulli_distribution coin_sex(mutate_female_prob);
@@ -382,6 +420,12 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
         out_delta_sum_p = static_cast<double>(cA) *
           (female_geno_ptr->row(B) - female_geno_ptr->row(A));
       }
+      if (diversity_metric == 2) {
+        // x[A] -= cA; x[B] += cA  (female block: indices [0, n_f))
+        out_x_idx_A = static_cast<int>(A);
+        out_x_idx_B = static_cast<int>(B);
+        out_x_amount = cA;
+      }
     } else {
       arma::uvec active = arma::find(out_male_counts > 0);
       if (active.n_elem == 0) {
@@ -420,6 +464,12 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
         out_delta_sum_p = static_cast<double>(cA) *
           (male_geno_ptr->row(B) - male_geno_ptr->row(A));
       }
+      if (diversity_metric == 2) {
+        // x[n_f + A] -= cA; x[n_f + B] += cA  (male block)
+        out_x_idx_A = n_f + static_cast<int>(A);
+        out_x_idx_B = n_f + static_cast<int>(B);
+        out_x_amount = cA;
+      }
     }
 
     return valid_move;
@@ -443,6 +493,8 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
     female_geno_ptr,
     male_geno_ptr,
     (diversity_metric == 1 ? &current_sum_p : nullptr),
+    K_full_ptr,
+    (diversity_metric == 2 ? &current_x : nullptr),
     &current_avg_gain,
     &current_avg_div
   );
@@ -463,6 +515,7 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
     arma::ivec trial_female_counts;
     arma::ivec trial_male_counts;
     arma::rowvec trial_delta_sum_p;
+    int trial_x_idx_A = -1, trial_x_idx_B = -1, trial_x_amount = 0;
 
     bool valid_move = propose_mutation(
       female_plan,
@@ -473,7 +526,10 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
       trial_male_plan,
       trial_female_counts,
       trial_male_counts,
-      trial_delta_sum_p
+      trial_delta_sum_p,
+      trial_x_idx_A,
+      trial_x_idx_B,
+      trial_x_amount
     );
 
     if (!valid_move) {
@@ -483,6 +539,14 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
     arma::rowvec trial_sum_p;
     if (diversity_metric == 1) {
       trial_sum_p = current_sum_p + trial_delta_sum_p;
+    }
+    arma::vec trial_x;
+    if (diversity_metric == 2) {
+      trial_x = current_x;
+      if (trial_x_amount != 0 && trial_x_idx_A >= 0 && trial_x_idx_B >= 0) {
+        trial_x[trial_x_idx_A] -= static_cast<double>(trial_x_amount);
+        trial_x[trial_x_idx_B] += static_cast<double>(trial_x_amount);
+      }
     }
 
     double trial_score = evaluate_plan_cpp(
@@ -500,7 +564,9 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
       diversity_metric,
       female_geno_ptr,
       male_geno_ptr,
-      (diversity_metric == 1 ? &trial_sum_p : nullptr)
+      (diversity_metric == 1 ? &trial_sum_p : nullptr),
+      K_full_ptr,
+      (diversity_metric == 2 ? &trial_x : nullptr)
     );
 
     double delta = trial_score - current_score;
@@ -528,6 +594,7 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
     arma::ivec trial_female_counts;
     arma::ivec trial_male_counts;
     arma::rowvec trial_delta_sum_p;
+    int trial_x_idx_A = -1, trial_x_idx_B = -1, trial_x_amount = 0;
 
     bool valid_move = propose_mutation(
       female_plan,
@@ -538,13 +605,24 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
       trial_male_plan,
       trial_female_counts,
       trial_male_counts,
-      trial_delta_sum_p
+      trial_delta_sum_p,
+      trial_x_idx_A,
+      trial_x_idx_B,
+      trial_x_amount
     );
 
     if (valid_move) {
       arma::rowvec trial_sum_p;
       if (diversity_metric == 1) {
         trial_sum_p = current_sum_p + trial_delta_sum_p;
+      }
+      arma::vec trial_x;
+      if (diversity_metric == 2) {
+        trial_x = current_x;
+        if (trial_x_amount != 0 && trial_x_idx_A >= 0 && trial_x_idx_B >= 0) {
+          trial_x[trial_x_idx_A] -= static_cast<double>(trial_x_amount);
+          trial_x[trial_x_idx_B] += static_cast<double>(trial_x_amount);
+        }
       }
 
       double trial_avg_gain = 0.0;
@@ -565,6 +643,8 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
         female_geno_ptr,
         male_geno_ptr,
         (diversity_metric == 1 ? &trial_sum_p : nullptr),
+        K_full_ptr,
+        (diversity_metric == 2 ? &trial_x : nullptr),
         &trial_avg_gain,
         &trial_avg_div
       );
@@ -587,6 +667,9 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
         current_avg_div = trial_avg_div;
         if (diversity_metric == 1) {
           current_sum_p = std::move(trial_sum_p);
+        }
+        if (diversity_metric == 2) {
+          current_x = std::move(trial_x);
         }
 
         if (current_score > best_score) {
@@ -744,7 +827,8 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
                               const int n_threads = 4,
                               const int diversity_metric = 1,
                               Rcpp::Nullable<Rcpp::NumericMatrix> female_geno = R_NilValue,
-                              Rcpp::Nullable<Rcpp::NumericMatrix> male_geno = R_NilValue) {
+                              Rcpp::Nullable<Rcpp::NumericMatrix> male_geno = R_NilValue,
+                              Rcpp::Nullable<Rcpp::NumericMatrix> relationship_full = R_NilValue) {
   const int n_f = gain_mat.n_rows;
   const int n_m = gain_mat.n_cols;
 
@@ -793,6 +877,23 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
     }
     female_geno_ptr = &female_geno_arma;
     male_geno_ptr   = &male_geno_arma;
+  }
+
+  // Resolve optional relationship_full matrix for pop_K mode
+  arma::mat K_full_arma;
+  const arma::mat* K_full_ptr = nullptr;
+
+  if (diversity_metric == 2) {
+    if (relationship_full.isNull()) {
+      stop("diversity_metric = 2 (pop_K) requires relationship_full block matrix.");
+    }
+    K_full_arma = as<arma::mat>(Rcpp::NumericMatrix(relationship_full));
+    const int n_total = n_f + n_m;
+    if (static_cast<int>(K_full_arma.n_rows) != n_total ||
+        static_cast<int>(K_full_arma.n_cols) != n_total) {
+      stop("relationship_full must be a square matrix of size (n_f + n_m).");
+    }
+    K_full_ptr = &K_full_arma;
   }
 
   arma::ivec female_min_arma = as<arma::ivec>(female_min);
@@ -848,6 +949,7 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
       diversity_metric,
       female_geno_ptr,
       male_geno_ptr,
+      K_full_ptr,
       rng
     );
 
