@@ -36,6 +36,7 @@ diversity retention without changing the formula.
 devtools::install("lagmRcpp")
 # or
 remotes::install_local("lagmRcpp")
+remotes::install_github("kzy599/LAGM", subdir = "lagmRcpp")
 ```
 
 System requirements: a C++ compiler with OpenMP, `Rcpp`,
