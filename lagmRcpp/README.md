@@ -10,21 +10,28 @@ adds a second-stage pair allocation to control progeny inbreeding.
 - **Generic inputs**: works on any candidate set described by IDs, EBVs, and
   either a genotype matrix or a user-supplied relationship matrix
   (NRM, GRM, H-matrix, ...).
-- **Three diversity metrics** (see *Diversity metrics* below):
-  - `pair_mean` — observed heterozygosity (Ho), one-pass mate selection that
-    natively encodes pair-level signal.
-  - `pop_He` — population-level expected heterozygosity from SNP genotypes;
-    requires Stage B for pair allocation.
-  - `pop_K` — population-level group coancestry from a relationship matrix;
-    requires Stage B for pair allocation.
-- **Stage B pair allocation** with the Hungarian algorithm (`mate_allocation_pct`):
-  globally optimal min/max progeny inbreeding inside the contribution
-  multiset chosen by Stage A.
+- **Four diversity metrics** organised on two axes (pair / pop) ×
+  (genomic / relationship) — see *Diversity metrics* below:
+  - `pair_He` — per-pair observed heterozygosity (Ho), genomic mode.
+    LAGM's recommended default; one-pass mate selection that natively
+    encodes pair-level signal.
+  - `pair_K` — per-pair `1 − A[f, m] / 2`, relationship mode.  The
+    NRM/GRM analogue of `pair_He`, also one-pass.
+  - `pop_He` — population-level expected heterozygosity from SNP
+    genotypes; OCS-style, requires Stage B for pair allocation.
+  - `pop_K` — population-level group coancestry from a relationship
+    matrix; OCS-style, requires Stage B for pair allocation.
+- **Stage B pair allocation** with the Hungarian algorithm
+  (`mate_allocation_pct`): globally optimal min/max progeny inbreeding
+  inside the contribution multiset chosen by Stage A.  Active only for
+  pop-level metrics.
 - **Flexible contribution constraints** per parent (`female_min/max`,
   `male_min/max`).
 - **Parallel SA** (`n_pop` independent restarts via OpenMP).
 - **Backward-compatible defaults**: not setting `mate_allocation_pct` keeps the
   legacy behaviour (random pairing) so existing scripts are unaffected.
+  The legacy metric name `pair_mean` is still accepted as an alias for
+  `pair_He` (with a deprecation warning).
 
 ## Installation
 
@@ -66,15 +73,15 @@ plan <- lagm_plan(
   male_min              = rep(0L,  length(male_ids)),
   male_max              = rep(2L,  length(male_ids)),    # each sire at most 2 matings
   diversity_mode        = "genomic",
-  geno_matrix           = geno,
-  diversity_metric      = "pop_He",
-  mate_allocation_pct   = 100   # Stage B: minimise mean within-pair kinship
+  geno_matrix           = geno
+  # diversity_metric defaults to "pair_He" (Ho) -- LAGM's recommended default.
+  # Set diversity_metric = "pop_He" + mate_allocation_pct for OCS-style.
 )
 
 head(plan)
-#>    female_id male_id score pair_gain pair_diversity stage_b_F
-#> 1: F0123     M0042   NA    1.245     0.391          0.018
-#> 2: F0344     M0011   NA    0.987     0.408          0.022
+#>    female_id male_id    score pair_gain pair_diversity stage_b_F
+#> 1: F0123     M0042   -0.318    1.245     0.391          0.018
+#> 2: F0344     M0011   -0.402    0.987     0.408          0.022
 #> ...
 ```
 
@@ -94,9 +101,10 @@ plan <- lagm_plan(
   male_min              = rep(0L, length(male_ids)),
   male_max              = rep(2L, length(male_ids)),
   diversity_mode        = "relationship",
-  relationship_matrix   = K,           # NRM, GRM, ...
-  diversity_metric      = "pop_K",     # automatic in relationship mode
-  mate_allocation_pct   = 75
+  relationship_matrix   = K            # NRM, GRM, ...
+  # diversity_metric defaults to "pair_K": per-pair (1 - A[f,m]/2),
+  # SA-optimised in one pass.  Switch to "pop_K" + mate_allocation_pct
+  # for OCS-style group-coancestry optimisation.
 )
 ```
 
@@ -109,9 +117,8 @@ result <- lagm_mating(
   males                 = male_pop,
   n_crosses             = 100,
   lookahead_generations = 5,
-  diversity_mode        = "genomic",
-  diversity_metric      = "pop_He",
-  mate_allocation_pct   = 100
+  diversity_mode        = "genomic"
+  # diversity_metric defaults to "pair_He"; no Stage B needed.
 )
 
 result$plan        # data.table with the mating plan
@@ -147,6 +154,11 @@ Modern mate selection is decomposed into:
    against the M selected males to control progeny inbreeding using the
    **Hungarian algorithm** (globally optimal in O(M³)).
 
+   Stage B applies **only** to pop-level metrics (`pop_He`, `pop_K`).
+   Pair-level metrics (`pair_He`, `pair_K`) already encode pair signal
+   in Stage A, so `mate_allocation_pct` is silently ignored (with a
+   warning) in those modes.
+
    `mate_allocation_pct` chooses the target position between
    `F_min` (best avoidance) and `F_max` (worst avoidance):
 
@@ -157,37 +169,94 @@ Modern mate selection is decomposed into:
    | `0`   | Hungarian max — maximise `mean K(f, m)` |
    | `N` in `(0, 100)` | Swap-based interpolation toward `F_min + (1 - N/100)·(F_max - F_min)` |
 
-   For the `pair_mean` metric, Stage A's SA already encodes the pair
-   signal, so Stage B is skipped and `mate_allocation_pct` is ignored
-   with a warning.
+   For pair-level metrics (`pair_He`, `pair_K`), Stage A's SA already
+   encodes the pair signal, so Stage B is skipped and
+   `mate_allocation_pct` is ignored with a warning.
 
 ### Diversity metrics
 
-| Metric | Mode | Diversity quantity D | Stage B applied? | Pop-level? | Pair-level? |
-|---|---|---|---|---|---|
-| `pair_mean` | genomic *or* relationship | `mean_k(p_f + p_m − 2·p_f·p_m)` (genomic) or `mean_k(1 − A[f,m]/2)` (relationship) | No (one-pass) | partial | yes |
-| `pop_He`    | genomic only | `mean_l(2·p̄·(1−p̄))` with `p̄ = mean_k((p_f+p_m)/2)` | Yes | yes (incl. Wahlund variance) | no (Stage B handles it) |
-| `pop_K`     | relationship only | `1 − x' K x / (4M²)` where `x` is the contribution vector | Yes | yes (group coancestry) | no (Stage B handles it) |
+LAGM provides **four** diversity metrics, organised along two axes:
 
-A short explanation of the difference (see in-source comments and the
-project notes for the full algebra):
+|                      | Genomic mode (SNP) | Relationship mode (NRM / GRM / H) |
+|----------------------|--------------------|-----------------------------------|
+| **Pair level**       | `pair_He` (Ho) ★   | `pair_K`                          |
+| **Population level** | `pop_He`           | `pop_K`                           |
 
-- **`pair_mean` (Ho)** retains pair identity through the `−2·p_f·p_m`
-  term. It is the only metric that lets a single SA pass produce a
-  meaningful pair plan.  Use this if you want a one-pass solution that
-  trades off gain × diversity × pair-avoidance simultaneously.
+★ = LAGM's recommended default in genomic mode.  In relationship mode
+the recommended default is `pair_K`.
 
-- **`pop_He`** uses Wahlund's `H_T = H_S + 2·Var(p̄_k)` decomposition
-  and captures between-family allele-frequency variance.  This is the
-  population-level analogue OCS practitioners expect.  It does *not*
-  see pair identity, so Stage B is needed to produce a non-random
-  mating plan.
+#### Pair-level metrics (recommended)
 
-- **`pop_K`** is the relationship-matrix counterpart of `pop_He`.  The
-  diversity score `1 − x'Kx/(4M²)` is the standard group coancestry
-  written in LAGM normalisation form, and is invariant to the pair
-  assignment for a fixed contribution.  Stage B then allocates pairs
-  using the same K (or a user override).
+These are the **default and preferred** choices for LAGM's design
+philosophy.  They are computed as a per-pair quantity averaged across
+the M selected matings, and SA optimises pair identity directly — no
+Stage B is needed.
+
+- **`pair_He` (genomic)** — per-pair observed heterozygosity:
+  `D = mean_k mean_l (p_f + p_m − 2·p_f·p_m)`.  Captures both pop-level
+  retention (additive `p_f + p_m` term) and pair-level avoidance
+  (`−2·p_f·p_m` term).  This is the historical core of LAGM.
+
+- **`pair_K` (relationship)** — per-pair `1 − F_progeny`:
+  `D = mean_k (1 − A[f_k, m_k] / 2)`.  The relationship-matrix analogue
+  of `pair_He`: directly minimises mean expected progeny inbreeding
+  while jointly trading off gain in a single SA pass.
+
+**Why pair-level is the default**: LAGM's lookahead objective
+`score = log(Gnorm) + t · log((D/D_0)^t_norm)` derives its long-horizon
+predictive power from the fact that D drops measurably when selection
+pressure is high.  Pair-level metrics (Ho-like) drop fast in response to
+selection, so the `(D/D_0)^t` compounding cleanly mirrors
+`(1 − 1/(2N_e))^t` — the standard quantitative-genetics decay model.
+Population-level metrics drop slowly under one round of selection
+(Wahlund variance grows slowly), so the t-compounding effect is
+substantially weaker.
+
+#### Population-level metrics (advanced)
+
+Use these only when you specifically want OCS-style group-coancestry
+optimisation, e.g. when comparing LAGM to AlphaMate or to published OCS
+literature.
+
+- **`pop_He` (genomic)** — `D = mean_l(2·p̄·(1 − p̄))`, where p̄ is
+  the offspring-pool mean allele frequency over all selected pairs.
+  Captures the Wahlund between-family variance component of total
+  diversity (`H_T = H_S + 2·Var(p̄_k)`).
+
+- **`pop_K` (relationship)** — group coancestry written as
+  `D = 1 − x'Kx / (4M²)`, where `x` is the contribution count vector
+  (parents not in the plan have `x_i = 0`).  Equivalent up to scale to
+  the OCS textbook quantity `x'Ax / 2` after normalisation.
+
+**Important caveat**: pop-level D is invariant to the pair assignment
+within a fixed contribution multiset.  SA's swap mutation therefore
+cannot improve D in these modes — pair-level information is delegated
+to **Stage B** (Hungarian pair allocation; see above).  Without
+`mate_allocation_pct`, the resulting plan reduces to OCS + random
+mating.
+
+#### Default behaviour
+
+If `diversity_metric` is not specified, LAGM picks the pair-level
+metric appropriate to the mode:
+
+```r
+lagm_plan(..., diversity_mode = "genomic")       # uses pair_He
+lagm_plan(..., diversity_mode = "relationship")  # uses pair_K
+```
+
+#### mode × metric compatibility
+
+The four metrics partition cleanly across the two modes; mixing across
+the boundary is a hard error (no silent coercion).
+
+|                | `pair_He` | `pop_He` | `pair_K` | `pop_K` |
+|----------------|-----------|----------|----------|---------|
+| `genomic`      | ✓         | ✓        | ✗        | ✗       |
+| `relationship` | ✗         | ✗        | ✓        | ✓       |
+
+The legacy name `pair_mean` is accepted as an alias for `pair_He` and
+emits a deprecation warning.
 
 ### `pair_diversity` and `stage_b_F` reporting
 
@@ -196,7 +265,7 @@ The returned `data.table` always contains:
 | Column | Meaning |
 |---|---|
 | `female_id`, `male_id` | The final mating plan (after Stage B if applied) |
-| `score` | Per-pair Stage A score; only meaningful for `pair_mean` (NA otherwise) |
+| `score` | Per-pair Stage A score; meaningful for the pair-level metrics (`pair_He`, `pair_K`) where SA optimised it directly.  NA for `pop_He` / `pop_K`. |
 | `pair_gain` | `(EBV_f + EBV_m) / 2` — diagnostic |
 | `pair_diversity` | Per-pair diagnostic from the original `div_mat`. In genomic mode this is per-pair Ho; in relationship mode it is `1 − A[f,m]/2`. **Not** equal to the SA's optimisation target in `pop_He`/`pop_K` modes. |
 | `stage_b_F` | Mean kinship `mean(K[f, m])` over the final plan, computed under the same K used (or that would be used) by Stage B.  Available in **all** modes for cross-mode comparability.  Use this as the headline progeny-inbreeding indicator. |
@@ -235,7 +304,10 @@ lagm_plan(
   base_diversity = NULL,            # H0 for D = He / H0; defaults to candidate-pool He
   geno_matrix = NULL,               # required when diversity_mode = "genomic"
   relationship_matrix = NULL,       # required when diversity_mode = "relationship"
-  diversity_metric = c("pop_He", "pair_mean", "pop_K"),
+  diversity_metric = NULL,          # default: pair_He (genomic) / pair_K (relationship)
+                                    # legal values: "pair_He", "pop_He",
+                                    #               "pair_K",  "pop_K"
+                                    # ("pair_mean" accepted as a deprecated alias for "pair_He")
   mate_allocation_pct = NULL,       # NULL/"rand", 0, 100, or numeric in (0,100)
   mate_kinship_matrix = NULL,       # override Stage B K (default rules above)
   # SA tuning ---------------------------------------------------------------
@@ -264,17 +336,28 @@ lagm_plan(
 
 ## Recipes
 
-### A. One-pass mate selection (no Stage B), à la classic LAGM
+### A. One-pass mate selection (LAGM default)
 
 ```r
-plan <- lagm_plan(..., diversity_metric = "pair_mean")
+plan <- lagm_plan(...)
+# diversity_mode = "genomic" -> defaults to diversity_metric = "pair_He" (Ho).
 # Stage B is skipped; the SA's mating plan is returned as-is.
+```
+
+### A2. Pair-level NRM mate selection (relationship mode)
+
+```r
+plan <- lagm_plan(..., diversity_mode = "relationship",
+                  relationship_matrix = NRM)
+# Defaults to diversity_metric = "pair_K": minimises mean (1 - A[f,m]/2)
+# jointly with gain in a single SA pass; Stage B is skipped.
 ```
 
 ### B. OCS-style: contribution optimisation + random pairing (paper GOCS)
 
 ```r
 plan <- lagm_plan(..., diversity_metric = "pop_He")  # mate_allocation_pct = NULL
+# Population-level metric, requires Stage B.
 # Stage A picks parents (and contributions); Stage B does random pairing.
 ```
 
@@ -283,6 +366,7 @@ plan <- lagm_plan(..., diversity_metric = "pop_He")  # mate_allocation_pct = NUL
 ```r
 plan <- lagm_plan(..., diversity_metric = "pop_He",
                   mate_allocation_pct = 100)
+# Population-level metric, requires Stage B.
 # Equivalent to GOCS + AlphaMate's ModeMinInbreeding on the selected parents.
 ```
 
@@ -292,6 +376,7 @@ plan <- lagm_plan(..., diversity_metric = "pop_He",
 plan <- lagm_plan(..., diversity_metric = "pop_K",
                   relationship_matrix = NRM,
                   mate_allocation_pct = 75)
+# Population-level metric, requires Stage B.
 # Stage B places mean F at F_min + 0.25 * (F_max - F_min).
 ```
 
@@ -299,12 +384,12 @@ plan <- lagm_plan(..., diversity_metric = "pop_K",
 
 ```r
 plans <- list(
-  Ho     = lagm_plan(..., diversity_metric = "pair_mean"),
+  pairHe = lagm_plan(..., diversity_metric = "pair_He"),
   popHe  = lagm_plan(..., diversity_metric = "pop_He", mate_allocation_pct = 100),
   popK   = lagm_plan(..., diversity_metric = "pop_K",  relationship_matrix = NRM,
                     mate_allocation_pct = 100)
 )
-# All three have the same `stage_b_F` semantics, so you can compare directly.
+# All variants share the same `stage_b_F` semantics, so you can compare directly.
 ```
 
 ## Comparison with AlphaMate
@@ -334,8 +419,9 @@ modular.
   `cooling_rate` to ~0.999.
 - For very large candidate pools, set `n_threads` to the number of
   physical cores; SA restarts are embarrassingly parallel.
-- The `score` column is meaningful only for `pair_mean`; in
-  `pop_He`/`pop_K` modes use `stage_b_F`, `pair_gain`, and the average
+- The `score` column is meaningful only for pair-level metrics
+  (`pair_He`, `pair_K`); in `pop_He`/`pop_K` modes use `stage_b_F`,
+  `pair_gain`, and the average
   of `pair_diversity` for diagnostics.
 
 ## Citation
