@@ -256,6 +256,70 @@ test_that("pair_mean (Ho) and pop_He compute different diversity values", {
   expect_equal(res_pop_he$avg_diversity, 0.5, tolerance = 1e-6)
 })
 
+test_that("pop_He incremental sum_p update matches from-scratch recompute", {
+  # 5 females x 4 males x 3 loci toy. The SA inner loop maintains an
+  # incremental sum_p; verify that the avg_diversity reported by
+  # optimize_mating_plan_cpp matches a from-scratch He recompute on the
+  # returned (female_index, male_index) plan.
+  set.seed(123)
+  n_f <- 5L
+  n_m <- 4L
+  n_loci <- 3L
+  female_geno_test <- matrix(
+    sample(0:2, n_f * n_loci, replace = TRUE),
+    nrow = n_f, ncol = n_loci
+  )
+  male_geno_test <- matrix(
+    sample(0:2, n_m * n_loci, replace = TRUE),
+    nrow = n_m, ncol = n_loci
+  )
+  female_ebv_test <- runif(n_f)
+  male_ebv_test   <- runif(n_m)
+
+  gain_mat_test <- compute_pair_gain_cpp(female_ebv_test, male_ebv_test)
+  div_mat_test  <- compute_expected_heterozygosity_cpp(
+    female_geno_test, male_geno_test
+  )
+
+  res <- optimize_mating_plan_cpp(
+    gain_mat   = gain_mat_test,
+    div_mat    = div_mat_test,
+    female_min = rep(0L, n_f),
+    female_max = rep(4L, n_f),
+    male_min   = rep(0L, n_m),
+    male_max   = rep(4L, n_m),
+    n_crosses   = 4L,
+    opt_mode    = 3L,
+    Gmin        = min(gain_mat_test),
+    Gmax        = max(gain_mat_test),
+    Dmin        = min(div_mat_test),
+    Dmax        = max(div_mat_test),
+    base_div    = max(div_mat_test),
+    lookahead_t = 1.0,
+    n_iter      = 200L,
+    init_prob   = 0.8,
+    cooling_rate = 0.99,
+    stop_window  = 200L,
+    warmup_iter  = 30L,
+    n_pop        = 5L,
+    n_threads    = 1L,
+    diversity_metric = 1L,
+    female_geno      = female_geno_test,
+    male_geno        = male_geno_test
+  )
+
+  # Recompute pop_He from scratch on the returned plan (R-side, 1-based indices).
+  fi <- res$female_index
+  mi <- res$male_index
+  n  <- length(fi)
+  sum_p <- colSums(female_geno_test[fi, , drop = FALSE]) +
+           colSums(male_geno_test[mi, , drop = FALSE])
+  p_bar <- sum_p / (2 * n)
+  he_recomputed <- mean(2 * p_bar * (1 - p_bar))
+
+  expect_equal(res$avg_diversity, he_recomputed, tolerance = 1e-10)
+})
+
 test_that("pop_He is rejected in relationship mode", {
   ids    <- c("i1", "i2", "i3", "i4")
   rel    <- diag(4)
