@@ -26,7 +26,7 @@ make_candidate_pool <- function(seed = 2026L) {
   )
 }
 
-run_plan <- function(pool, metric, mate_allocation_pct, seed = 17L) {
+run_plan <- function(pool, level, mate_allocation_pct, seed = 17L) {
   set.seed(seed)
   lagm_plan(
     individual_ids        = pool$ids,
@@ -40,8 +40,8 @@ run_plan <- function(pool, metric, mate_allocation_pct, seed = 17L) {
     male_min              = rep(0L, length(pool$male_ids)),
     male_max              = rep(2L, length(pool$male_ids)),
     diversity_mode        = "genomic",
+    diversity_level       = level,
     geno_matrix           = pool$geno,
-    diversity_metric      = metric,
     mate_allocation_pct   = mate_allocation_pct,
     n_iter                = 200L,
     n_pop                 = 5L,
@@ -49,21 +49,21 @@ run_plan <- function(pool, metric, mate_allocation_pct, seed = 17L) {
   )
 }
 
-test_that("stage_b_F is finite in pair_mean (Ho) mode", {
+test_that("stage_b_F is finite in pair-level (Ho) mode", {
   pool <- make_candidate_pool()
-  plan_pair <- run_plan(pool, metric = "pair_mean",
+  plan_pair <- run_plan(pool, level = "pair",
                         mate_allocation_pct = NULL)
   expect_true(all(is.finite(plan_pair$stage_b_F)))
   # All rows of a single plan share the same stage_b_F (plan-level scalar).
   expect_length(unique(plan_pair$stage_b_F), 1L)
 })
 
-test_that("stage_b_F is comparable across pair_mean / pop_He / pop_He+pct=100", {
+test_that("stage_b_F is comparable across pair / pop / pop+pct=100", {
   pool <- make_candidate_pool()
 
-  plan_pair       <- run_plan(pool, "pair_mean", NULL)
-  plan_popHe_rand <- run_plan(pool, "pop_He",    NULL)
-  plan_popHe_min  <- run_plan(pool, "pop_He",    100)
+  plan_pair       <- run_plan(pool, "pair", NULL)
+  plan_popHe_rand <- run_plan(pool, "pop",  NULL)
+  plan_popHe_min  <- run_plan(pool, "pop",  100)
 
   for (p in list(plan_pair, plan_popHe_rand, plan_popHe_min)) {
     expect_true(all(is.finite(p$stage_b_F)))
@@ -74,15 +74,19 @@ test_that("stage_b_F is comparable across pair_mean / pop_He / pop_He+pct=100", 
   F_popHe_min  <- unique(plan_popHe_min$stage_b_F)
 
   # The Hungarian-min Stage B (pct = 100) must achieve a stage_b_F no
-  # larger than the random-pairing Stage B variant on the same metric.
+  # larger than the random-pairing Stage B variant on the same level.
   expect_lte(F_popHe_min, F_popHe_rand + 1e-10)
 
-  # pair_mean's stage_b_F is reported here as a diagnostic; we don't
-  # enforce any inequality vs. pop_He, only that it is a finite scalar.
+  # pair-level stage_b_F is reported here as a diagnostic; we don't
+  # enforce any inequality vs. pop, only that it is a finite scalar.
   expect_true(is.finite(F_pair))
 })
 
-test_that("relationship mode rejects pop_He with a hard error", {
+test_that("legacy diversity_metric = 'pop_He' in relationship mode now coerces (no error)", {
+  # Under the new two-axis API (mode, level), passing the deprecated
+  # diversity_metric = "pop_He" simply maps to diversity_level = "pop".
+  # Combined with diversity_mode = "relationship", this resolves to
+  # group coancestry and runs successfully (no cross-mode rejection).
   set.seed(2026L)
   n_cand <- 80L
   ids        <- sprintf("ind%03d", seq_len(n_cand))
@@ -95,8 +99,8 @@ test_that("relationship mode rejects pop_He with a hard error", {
   rel <- tcrossprod(M) / 12 + diag(0.5, n_cand)
   rownames(rel) <- colnames(rel) <- ids
 
-  expect_error(
-    lagm_plan(
+  expect_warning(
+    plan_dt <- lagm_plan(
       individual_ids        = ids,
       female_ids            = female_ids,
       male_ids              = male_ids,
@@ -115,6 +119,8 @@ test_that("relationship mode rejects pop_He with a hard error", {
       n_pop                 = 5L,
       n_threads             = 1L
     ),
-    regexp = "pop_He"
+    regexp = "diversity_metric.*deprecated"
   )
+  expect_equal(nrow(plan_dt), 20L)
+  expect_true(all(is.na(plan_dt$score)))  # pop level => score is NA
 })

@@ -320,22 +320,29 @@ test_that("pop_He incremental sum_p update matches from-scratch recompute", {
   expect_equal(res$avg_diversity, he_recomputed, tolerance = 1e-10)
 })
 
-test_that("pop_He requested in relationship mode raises a hard error", {
-  # Per the new four-metric design, mode x metric mismatches are a hard
-  # error (no silent coercion).  Genomic-only metrics (pair_He / pop_He)
-  # are not allowed in relationship mode.
+test_that("legacy diversity_metric = 'pop_He' in relationship mode no longer errors (deprecation only)", {
+  # Under the new two-axis API, the deprecated diversity_metric argument
+  # only carries a `level`; the mode is fully orthogonal.  So
+  # `mode = "relationship", diversity_metric = "pop_He"` no longer
+  # rejects with a hard error -- it coerces to `level = "pop"` (which
+  # in relationship mode resolves to group coancestry) and emits a
+  # deprecation warning.
   ids    <- c("i1", "i2", "i3", "i4")
   rel    <- diag(4)
   ebv    <- c(1.0, 1.5, 2.0, 2.5)
 
-  expect_error(
-    lagm_plan(
+  expect_warning(
+    plan_dt <- lagm_plan(
       individual_ids = ids,
       female_ids     = c("i1", "i2"),
       male_ids       = c("i3", "i4"),
       ebv_vector     = ebv,
       n_crosses      = 2L,
       lookahead_generations = 1L,
+      female_min     = c(1L, 1L),
+      female_max     = c(1L, 1L),
+      male_min       = c(1L, 1L),
+      male_max       = c(1L, 1L),
       diversity_mode = "relationship",
       relationship_matrix = rel,
       diversity_metric = "pop_He",
@@ -343,11 +350,12 @@ test_that("pop_He requested in relationship mode raises a hard error", {
       n_pop          = 5L,
       n_threads      = 1L
     ),
-    regexp = "pop_He"
+    regexp = "diversity_metric.*deprecated"
   )
+  expect_equal(nrow(plan_dt), 2L)
 })
 
-test_that("lagm_plan works with diversity_metric = pop_He in genomic mode", {
+test_that("lagm_plan works with diversity_level = 'pop' in genomic mode", {
   ids        <- c("i1", "i2", "i3", "i4")
   female_ids <- c("i1", "i2")
   male_ids   <- c("i3", "i4")
@@ -373,9 +381,9 @@ test_that("lagm_plan works with diversity_metric = pop_He in genomic mode", {
     female_max = c(2L, 1L),
     male_min   = c(0L, 1L),
     male_max   = c(1L, 2L),
-    diversity_mode   = "genomic",
-    geno_matrix      = geno,
-    diversity_metric = "pop_He",
+    diversity_mode  = "genomic",
+    diversity_level = "pop",
+    geno_matrix     = geno,
     n_iter       = 100L,
     init_prob    = 0.8,
     cooling_rate = 0.995,
@@ -391,7 +399,7 @@ test_that("lagm_plan works with diversity_metric = pop_He in genomic mode", {
   expect_true(all(plan_pop_he$male_id %in% male_ids))
 })
 
-test_that("lagm_plan works with diversity_metric = pair_mean (backward compat) in genomic mode", {
+test_that("lagm_plan accepts deprecated diversity_metric = 'pair_mean' (backward compat)", {
   ids        <- c("i1", "i2", "i3", "i4")
   female_ids <- c("i1", "i2")
   male_ids   <- c("i3", "i4")
@@ -406,28 +414,31 @@ test_that("lagm_plan works with diversity_metric = pair_mean (backward compat) i
     byrow = TRUE
   )
 
-  plan_pair_mean <- lagm_plan(
-    individual_ids = ids,
-    female_ids     = female_ids,
-    male_ids       = male_ids,
-    ebv_vector     = ebv,
-    n_crosses      = 2L,
-    lookahead_generations = 2L,
-    female_min = c(1L, 0L),
-    female_max = c(2L, 1L),
-    male_min   = c(0L, 1L),
-    male_max   = c(1L, 2L),
-    diversity_mode   = "genomic",
-    geno_matrix      = geno,
-    diversity_metric = "pair_mean",
-    n_iter       = 100L,
-    init_prob    = 0.8,
-    cooling_rate = 0.995,
-    stop_window  = 80L,
-    stop_eps     = 1e-6,
-    warmup_iter  = 40L,
-    n_pop        = 20L,
-    n_threads    = 2L
+  expect_warning(
+    plan_pair_mean <- lagm_plan(
+      individual_ids = ids,
+      female_ids     = female_ids,
+      male_ids       = male_ids,
+      ebv_vector     = ebv,
+      n_crosses      = 2L,
+      lookahead_generations = 2L,
+      female_min = c(1L, 0L),
+      female_max = c(2L, 1L),
+      male_min   = c(0L, 1L),
+      male_max   = c(1L, 2L),
+      diversity_mode   = "genomic",
+      geno_matrix      = geno,
+      diversity_metric = "pair_mean",
+      n_iter       = 100L,
+      init_prob    = 0.8,
+      cooling_rate = 0.995,
+      stop_window  = 80L,
+      stop_eps     = 1e-6,
+      warmup_iter  = 40L,
+      n_pop        = 20L,
+      n_threads    = 2L
+    ),
+    regexp = "diversity_metric.*deprecated"
   )
 
   expect_equal(nrow(plan_pair_mean), 2L)

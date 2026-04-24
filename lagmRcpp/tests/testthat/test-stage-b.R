@@ -121,7 +121,7 @@ test_that("Ho mode warns on mate_allocation_pct and ignores it", {
       lookahead_generations = 2L,
       diversity_mode = "genomic",
       geno_matrix    = geno,
-      diversity_metric = "pair_mean",
+      diversity_level = "pair",
       mate_allocation_pct = 50,
       n_iter = 100L, n_pop = 3L, n_threads = 1L
     ),
@@ -155,7 +155,7 @@ test_that("Stage B in pop_He mode preserves contribution multiset and minimises 
     male_max   = c(1L, 1L, 1L),
     diversity_mode = "genomic",
     geno_matrix    = geno,
-    diversity_metric = "pop_He",
+    diversity_level = "pop",
     n_iter = 100L, n_pop = 3L, n_threads = 1L
   )
 

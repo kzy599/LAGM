@@ -27,7 +27,7 @@ test_that("'pair_mean' is accepted with a deprecation warning", {
       diversity_metric = "pair_mean",
       n_iter = 50L, n_pop = 3L, n_threads = 1L
     ),
-    regexp = "pair_mean.*deprecated"
+    regexp = "diversity_metric.*deprecated"
   )
   expect_equal(nrow(plan_dt), 2L)
   # Pair-level metric: per-pair score is meaningful (not NA).
@@ -56,7 +56,7 @@ test_that("'pair_mean' resolves to the same code path as 'pair_He'", {
     n_iter = 50L, n_pop = 3L, n_threads = 1L
   ))
 
-  plan_canonical <- lagm_plan(
+  plan_canonical <- suppressWarnings(lagm_plan(
     individual_ids = ids,
     female_ids     = female_ids,
     male_ids       = male_ids,
@@ -67,7 +67,7 @@ test_that("'pair_mean' resolves to the same code path as 'pair_He'", {
     geno_matrix    = geno,
     diversity_metric = "pair_He",
     n_iter = 50L, n_pop = 3L, n_threads = 1L
-  )
+  ))
 
   # Same column structure -> same code path.  (SA itself is wall-clock-
   # seeded so individual plan elements may differ; the structural
