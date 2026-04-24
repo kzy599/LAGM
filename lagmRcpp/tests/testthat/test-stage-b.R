@@ -127,7 +127,7 @@ test_that("Ho mode warns on mate_allocation_pct and ignores it", {
     ),
     regexp = "Ho already encodes pair-level signal"
   )
-  expect_true(all(is.na(plan_dt$stage_b_F)))
+  expect_true(all(is.finite(plan_dt$stage_b_F)))
 })
 
 test_that("Stage B in pop_He mode preserves contribution multiset and minimises mean K at pct=100", {
@@ -169,11 +169,13 @@ test_that("Stage B in pop_He mode preserves contribution multiset and minimises 
   expect_equal(sort(plan_rand$female_id), female_ids)
   expect_equal(sort(plan_rand$male_id),   male_ids)
 
-  # Stage B reports a finite F at pct = 100 and NA at "rand"
+  # Stage B reports a finite F at pct = 100 and now also at "rand"
+  # (stage_b_F is uniformly the diagnostic mean kinship of the final
+  # plan computed under the default Stage B K).
   F_min_reported <- unique(plan_min$stage_b_F)
   expect_length(F_min_reported, 1L)
   expect_true(is.finite(F_min_reported))
-  expect_true(all(is.na(plan_rand$stage_b_F)))
+  expect_true(all(is.finite(plan_rand$stage_b_F)))
 
   # The minimised mean kinship from Stage B (100%) must be the smallest
   # mean K achievable over all 3! = 6 permutations of the male IDs.

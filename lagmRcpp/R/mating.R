@@ -7,20 +7,26 @@
 # - either geno_matrix (genomic mode) or relationship_matrix (relationship mode)
 #
 # Optional `diversity_metric`: one of "pop_He" (default), "pair_mean", or
-# "pop_K".
-#   - "pop_He" (genomic mode only) measures diversity at the population
-#     level via mean(2 * p_bar * (1 - p_bar)), where p_bar is the mean
-#     offspring allele frequency across all selected pairs. This captures
-#     the between-family allele-frequency variance component
-#     (Wahlund: H_T = H_S + 2 * Var(p)).
-#   - "pair_mean" reverts to the legacy per-pair Ho averaging.
-#   - "pop_K" (relationship mode only) is the population-level group
-#     coancestry analogue: D = 1 - x' K x / (4 M^2), where x is the plan's
-#     contribution multiset and K is the user-supplied relationship matrix.
-#     Like "pop_He", this is invariant to the pair assignment within a
+# "pop_K".  Each metric pairs with a specific diversity quantity D used
+# inside the SA score `log(Gnorm) + t * log(Dnorm)`:
+#   - "pair_mean" — observed heterozygosity (Ho) averaged across pairs.
+#     In genomic mode D = mean_k(p_f + p_m - 2 * p_f * p_m); in
+#     relationship mode D = mean_k(1 - A[f, m] / 2).  Pair identity is
+#     encoded directly, so SA produces a meaningful pair plan in one pass.
+#   - "pop_He" (genomic mode only) — population-level expected
+#     heterozygosity D = mean_l(2 * p_bar_l * (1 - p_bar_l)) with
+#     p_bar_l = mean over pairs of (p_f + p_m) / 2.  Captures the
+#     between-family allele-frequency variance component (Wahlund:
+#     H_T = H_S + 2 * Var(p_bar)).  Invariant to pair assignment for a
 #     fixed contribution; pair-level optimisation is delegated to Stage B.
-#   - In relationship mode, "pop_K" is the only choice; "pair_mean" and
-#     "pop_He" requests are coerced to "pop_K" with a warning.
+#   - "pop_K" (relationship mode only) — population-level group
+#     coancestry, D = 1 - x' K x / (4 M^2), where x is the plan's
+#     contribution multiset and K is the user-supplied relationship
+#     matrix.  Like "pop_He", invariant to pair assignment; Stage B
+#     handles pairing.
+#   - In relationship mode, "pop_K" is the only supported metric; passing
+#     any other metric raises a warning and the value is coerced to
+#     "pop_K".
 #
 # Stage B (pair allocation):
 #   `mate_allocation_pct` controls how the M selected females are paired
@@ -38,6 +44,23 @@
 #   by Stage B.  Defaults: VanRaden Method 2 GRM from `geno_matrix` for
 #   genomic mode, the user-supplied `relationship_matrix` for relationship
 #   mode.
+#
+# Returned data.table columns:
+#   - `female_id`, `male_id`: the final mating plan (after Stage B if
+#     applied).
+#   - `score`: per-pair Stage A score; only meaningful for "pair_mean"
+#     (NA for "pop_He" / "pop_K").
+#   - `pair_gain`: diagnostic per-pair (EBV_f + EBV_m) / 2.
+#   - `pair_diversity`: diagnostic per-pair quantity from the original
+#     div_mat.  In "pop_He" / "pop_K" modes this is *not* the SA's
+#     optimisation target (it is per-pair Ho or 1 - A[f, m] / 2).
+#   - `stage_b_F`: mean kinship `mean(K[f, m])` over the final plan,
+#     computed under the same K used (or that would be used) by Stage B.
+#     Reported in **all three metrics** (Ho mode included, as a
+#     diagnostic) so that the headline progeny-inbreeding indicator is
+#     directly comparable across metrics.  Only NA when no kinship
+#     matrix can be resolved (e.g. genomic mode with a degenerate
+#     genotype matrix).
 #
 # This function returns an optimized mating plan only (no simulation coupling).
 lagm_plan <- function(individual_ids,
@@ -71,13 +94,14 @@ lagm_plan <- function(individual_ids,
   diversity_metric <- match.arg(diversity_metric)
 
   # In relationship mode, the only meaningful metric is the pop-level
-  # group coancestry pop_K.  pair_mean / pop_He requests are coerced.
+  # group coancestry pop_K.  pair_mean / pop_He requests are coerced
+  # with an explicit warning so the user is aware of the change.
   if (identical(diversity_mode, "relationship")) {
     if (!identical(diversity_metric, "pop_K")) {
-      if (!identical(diversity_metric, "pop_He")) {
-        # pair_mean was the legacy default in relationship mode; quietly
-        # upgrade it (the new pop_K behaviour is the documented contract).
-      }
+      warning(sprintf(
+        "diversity_metric = \"%s\" is not supported in relationship mode; coercing to \"pop_K\".",
+        diversity_metric
+      ))
       diversity_metric <- "pop_K"
     }
   } else {
@@ -279,28 +303,49 @@ lagm_plan <- function(individual_ids,
   female_ids_in_plan <- input$female_ids[sol_final$female_index]
   male_ids_in_plan   <- input$male_ids[sol_final$male_index]
 
+  # Resolve Stage B kinship matrix.  This same K is also used to compute
+  # the diagnostic stage_b_F that we report in the returned data.table,
+  # so we resolve it whenever a sensible default is available -- not just
+  # when Stage B will actually use it for assignment.
+  K_b <- mate_kinship_matrix
+  if (is.null(K_b)) {
+    if (identical(diversity_mode, "genomic")) {
+      K_b <- tryCatch(
+        compute_vr2_grm(input$geno_matrix),
+        error = function(e) NULL
+      )
+    } else {
+      K_b <- input$relationship_matrix
+    }
+  } else {
+    K_b <- as.matrix(K_b)
+  }
+
+  # Ensure K_b carries dimnames matching individual IDs; without them we
+  # cannot index by ID for Stage B or for stage_b_F.  VR2 already attaches
+  # dimnames when geno_matrix has rownames; otherwise (and for user-
+  # supplied relationship matrices without dimnames) we fall back to
+  # input$individual_ids, since K_b is constructed at that dimension.
+  if (!is.null(K_b)) {
+    if (is.null(rownames(K_b)) || is.null(colnames(K_b))) {
+      if (nrow(K_b) == length(input$individual_ids) &&
+          ncol(K_b) == length(input$individual_ids)) {
+        warning("Stage B kinship matrix had no dimnames; assigning individual_ids.")
+        rownames(K_b) <- colnames(K_b) <- input$individual_ids
+      } else {
+        warning("Stage B kinship matrix has no dimnames and dimensions do not match individual_ids; stage_b_F will be NA.")
+        K_b <- NULL
+      }
+    }
+  }
+
   if (identical(diversity_metric, "pair_mean")) {
     # Ho: SA already produced a specific (female, male) plan; keep it.
     final_female_id <- female_ids_in_plan
     final_male_id   <- male_ids_in_plan
-    stage_b_F_value <- NA_real_
   } else {
     # pop_He / pop_K: SA only fixed the contribution multiset; reallocate
-    # pairs via Stage B.  Only compute the kinship matrix when Stage B will
-    # actually use it (random pairing doesn't need one).
-    needs_kinship <- !(is.null(mate_allocation_pct) ||
-                       identical(mate_allocation_pct, "rand"))
-    K_b <- mate_kinship_matrix
-    if (is.null(K_b) && needs_kinship) {
-      if (identical(diversity_mode, "genomic")) {
-        K_b <- compute_vr2_grm(input$geno_matrix)
-      } else {
-        K_b <- input$relationship_matrix
-      }
-    } else if (!is.null(K_b)) {
-      K_b <- as.matrix(K_b)
-    }
-
+    # pairs via Stage B.
     stage_b_plan <- stage_b_allocate(
       female_ids_in_plan = female_ids_in_plan,
       male_ids_in_plan   = male_ids_in_plan,
@@ -309,7 +354,24 @@ lagm_plan <- function(individual_ids,
     )
     final_female_id <- as.character(stage_b_plan$female_id)
     final_male_id   <- as.character(stage_b_plan$male_id)
-    stage_b_F_value <- as.numeric(attr(stage_b_plan, "stage_b_F"))
+  }
+
+  # Diagnostic mean-kinship of the final mating plan, computed under the
+  # same K used (or that would be used) by Stage B.  Reported in all
+  # modes so users can compare progeny inbreeding across metrics on a
+  # like-for-like basis.
+  final_female_id_chr <- as.character(final_female_id)
+  final_male_id_chr   <- as.character(final_male_id)
+  stage_b_F_value <- if (!is.null(K_b)) {
+    f_idx_K <- match(final_female_id_chr, rownames(K_b))
+    m_idx_K <- match(final_male_id_chr,   colnames(K_b))
+    if (anyNA(f_idx_K) || anyNA(m_idx_K)) {
+      NA_real_
+    } else {
+      mean(K_b[cbind(f_idx_K, m_idx_K)], na.rm = TRUE)
+    }
+  } else {
+    NA_real_
   }
 
   # Recompute per-pair score / gain / diversity on the (possibly Stage-B
