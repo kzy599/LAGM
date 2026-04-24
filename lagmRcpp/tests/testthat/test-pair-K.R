@@ -25,7 +25,7 @@ test_that("pair_K runs end-to-end in relationship mode", {
     lookahead_generations = 2L,
     diversity_mode = "relationship",
     relationship_matrix = pool$rel,
-    diversity_metric = "pair_K",
+    diversity_level = "pair",
     n_iter = 100L, n_pop = 3L, n_threads = 1L
   )
 
@@ -49,7 +49,7 @@ test_that("pair_K's mean(pair_diversity) equals mean(1 - A[f,m]/2)", {
     lookahead_generations = 1L,
     diversity_mode = "relationship",
     relationship_matrix = pool$rel,
-    diversity_metric = "pair_K",
+    diversity_level = "pair",
     n_iter = 100L, n_pop = 3L, n_threads = 1L
   )
 
@@ -87,7 +87,7 @@ test_that("pair_K SA swap is signal-bearing (swap_prob > 0 not worse than = 0)",
       male_max   = c(1L, 1L, 1L),
       diversity_mode = "relationship",
       relationship_matrix = pool$rel,
-      diversity_metric = "pair_K",
+      diversity_level = "pair",
       swap_prob = swap_p,
       n_iter = 400L, n_pop = 8L, n_threads = 1L
     )
@@ -115,7 +115,7 @@ test_that("pair_K mode warns when mate_allocation_pct is supplied", {
       lookahead_generations = 1L,
       diversity_mode = "relationship",
       relationship_matrix = pool$rel,
-      diversity_metric = "pair_K",
+      diversity_level = "pair",
       mate_allocation_pct = 50,
       n_iter = 50L, n_pop = 3L, n_threads = 1L
     ),
@@ -124,26 +124,23 @@ test_that("pair_K mode warns when mate_allocation_pct is supplied", {
   expect_equal(nrow(plan_dt), 3L)
 })
 
-test_that("genomic mode rejects pair_K with a hard error", {
-  set.seed(3L)
-  ids        <- paste0("i", 1:4)
-  geno       <- matrix(sample(0:2, 4 * 20, replace = TRUE), nrow = 4, ncol = 20)
-  rownames(geno) <- ids
-  ebv        <- runif(4)
-
-  expect_error(
-    lagm_plan(
-      individual_ids = ids,
-      female_ids     = ids[1:2],
-      male_ids       = ids[3:4],
-      ebv_vector     = ebv,
-      n_crosses      = 2L,
+test_that("legacy diversity_metric = 'pair_K' still works with deprecation warning", {
+  pool <- make_pool(seed = 17L)
+  expect_warning(
+    plan_dt <- lagm_plan(
+      individual_ids = pool$ids,
+      female_ids     = pool$ids[1:3],
+      male_ids       = pool$ids[4:6],
+      ebv_vector     = pool$ebv,
+      n_crosses      = 3L,
       lookahead_generations = 1L,
-      diversity_mode = "genomic",
-      geno_matrix    = geno,
+      diversity_mode = "relationship",
+      relationship_matrix = pool$rel,
       diversity_metric = "pair_K",
       n_iter = 50L, n_pop = 3L, n_threads = 1L
     ),
-    regexp = "pair_K"
+    regexp = "diversity_metric.*deprecated"
   )
+  expect_equal(nrow(plan_dt), 3L)
+  expect_true(all(is.finite(plan_dt$score)))
 })

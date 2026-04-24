@@ -247,6 +247,11 @@ double evaluate_plan_cpp(const arma::uvec& female_plan,
   } else if (diversity_metric == 2 && K_full_ptr != nullptr && x_ptr != nullptr) {
     avg_div = pop_k_div_from_x(*x_ptr, *K_full_ptr, n);
   } else {
+    // Pair-level branch: covers metric == 0 (genomic, pair -> per-pair Ho)
+    // and metric == 3 (relationship, pair -> per-pair 1 - A[f,m]/2).  In
+    // both cases div_mat already holds the per-pair quantity, so the
+    // average is just sum_div / n.  No new data structure or incremental
+    // update is required for metric == 3.
     avg_div = sum_div / n;
   }
 

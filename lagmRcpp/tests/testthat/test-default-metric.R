@@ -1,12 +1,12 @@
 library(lagm)
 
-# When `diversity_metric` is not specified, lagm_plan() must pick the
-# pair-level metric matching the mode:
-#   genomic       -> pair_He
-#   relationship  -> pair_K
+# When `diversity_level` is not specified, lagm_plan() must default to
+# "pair", so:
+#   genomic       -> per-pair Ho   (internal metric int 0)
+#   relationship  -> per-pair 1-A/2 (internal metric int 3)
 #
 # We assert this by running once with the default and once with the
-# explicit pair-level metric and checking that the resulting plan
+# explicit pair-level value and checking that the resulting plan
 # columns and shape are identical (the SA itself is non-deterministic
 # across runs because seeded from wall-clock, but the structure must
 # be the same).
@@ -41,7 +41,7 @@ test_that("default in genomic mode resolves to pair_He", {
     lookahead_generations = 1L,
     diversity_mode = "genomic",
     geno_matrix    = geno,
-    diversity_metric = "pair_He",
+    diversity_level = "pair",
     n_iter = 50L, n_pop = 3L, n_threads = 1L
   )
 
@@ -85,7 +85,7 @@ test_that("default in relationship mode resolves to pair_K", {
     lookahead_generations = 1L,
     diversity_mode = "relationship",
     relationship_matrix = rel,
-    diversity_metric = "pair_K",
+    diversity_level = "pair",
     n_iter = 50L, n_pop = 3L, n_threads = 1L
   )
 
