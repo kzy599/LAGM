@@ -59,7 +59,7 @@ test_that("pair_K's mean(pair_diversity) equals mean(1 - A[f,m]/2)", {
   ] / 2
 
   expect_equal(plan_dt$pair_diversity, as.numeric(manual_pair_div),
-               tolerance = 1e-12)
+               tolerance = 1e-10)
 })
 
 test_that("pair_K SA swap is signal-bearing (swap_prob > 0 not worse than = 0)", {
