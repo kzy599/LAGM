@@ -21,6 +21,7 @@ lagm_plan <- function(individual_ids,
                       base_diversity = NULL,
                       geno_matrix = NULL,
                       relationship_matrix = NULL,
+                      diversity_metric = c("pop_He", "pair_mean"),
                       n_iter = 2000L,
                       swap_prob = 0.2,
                       mutate_female_prob = 0.5,
@@ -32,6 +33,14 @@ lagm_plan <- function(individual_ids,
                       n_pop = 50L,
                       n_threads = 4L) {
   diversity_mode <- match.arg(diversity_mode)
+  diversity_metric <- match.arg(diversity_metric)
+
+  if (diversity_metric == "pop_He" && !identical(diversity_mode, "genomic")) {
+    stop("diversity_metric = \"pop_He\" is only available in diversity_mode = \"genomic\". ",
+         "Use diversity_metric = \"pair_mean\" for relationship mode.")
+  }
+
+  diversity_metric_int <- switch(diversity_metric, pair_mean = 0L, pop_He = 1L)
 
   input <- build_lagm_input(
     individual_ids = individual_ids,
@@ -121,6 +130,10 @@ lagm_plan <- function(individual_ids,
     base_div_value <- input$base_diversity
   }
 
+  # Genotype matrices to pass for pop_He computation
+  female_geno_arg <- if (diversity_metric_int == 1L) input$female_geno else NULL
+  male_geno_arg   <- if (diversity_metric_int == 1L) input$male_geno   else NULL
+
   run_opt_mode <- function(opt_mode, Gmin, Gmax, Dmin, Dmax) {
     optimize_mating_plan_cpp(
       gain_mat = gain_mat,
@@ -146,7 +159,10 @@ lagm_plan <- function(individual_ids,
       stop_eps = as.double(stop_eps),
       warmup_iter = as.integer(warmup_iter),
       n_pop = as.integer(n_pop),
-      n_threads = as.integer(n_threads)
+      n_threads = as.integer(n_threads),
+      diversity_metric = diversity_metric_int,
+      female_geno = female_geno_arg,
+      male_geno = male_geno_arg
     )
   }
 
@@ -205,6 +221,7 @@ lagm_mating <- function(candidate,
                         diversity_mode = c("genomic", "relationship"),
                         base_diversity = NULL,
                         relationship_matrix = NULL,
+                        diversity_metric = c("pop_He", "pair_mean"),
                         n_iter = 2000L,
                         swap_prob = 0.2,
                         mutate_female_prob = 0.5,
@@ -243,6 +260,7 @@ lagm_mating <- function(candidate,
     base_diversity = base_diversity,
     geno_matrix = geno_matrix,
     relationship_matrix = relationship_matrix,
+    diversity_metric = diversity_metric,
     n_iter = n_iter,
     swap_prob = swap_prob,
     mutate_female_prob = mutate_female_prob,
