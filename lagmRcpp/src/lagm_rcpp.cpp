@@ -176,15 +176,15 @@ double compute_population_He_from_plan(const arma::uvec& female_plan,
                                        const arma::uvec& male_plan,
                                        const arma::mat& female_geno,
                                        const arma::mat& male_geno) {
-  const int n = static_cast<int>(female_plan.n_elem);
+  const unsigned int n = female_plan.n_elem;
   const unsigned int n_loci = female_geno.n_cols;
 
   arma::rowvec sum_p(n_loci, arma::fill::zeros);
-  for (int k = 0; k < n; ++k) {
+  for (unsigned int k = 0; k < n; ++k) {
     sum_p += (female_geno.row(female_plan[k]) + male_geno.row(male_plan[k]));
   }
   // p_bar_l = (sum of (geno_f + geno_m) / 2) / n  =  sum / (2 * n)
-  arma::rowvec p_bar = sum_p / (2.0 * n);
+  arma::rowvec p_bar = sum_p / (2.0 * static_cast<double>(n));
 
   return arma::mean(2.0 * p_bar % (1.0 - p_bar));
 }
@@ -207,14 +207,14 @@ double evaluate_plan_cpp(const arma::uvec& female_plan,
                          double* avg_div_out = nullptr) {
   double sum_gain = 0.0;
   double sum_div = 0.0;
-  const int n = female_plan.n_elem;
+  const unsigned int n = female_plan.n_elem;
 
-  for (int k = 0; k < n; ++k) {
+  for (unsigned int k = 0; k < n; ++k) {
     sum_gain += gain_mat(female_plan[k], male_plan[k]);
     sum_div += div_mat(female_plan[k], male_plan[k]);
   }
 
-  const double avg_gain = sum_gain / n;
+  const double avg_gain = sum_gain / static_cast<double>(n);
   double avg_div;
 
   if (diversity_metric == 1 && female_geno_ptr != nullptr && male_geno_ptr != nullptr) {
