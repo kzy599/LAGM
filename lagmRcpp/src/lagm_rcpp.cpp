@@ -5,6 +5,7 @@
 #include <chrono>
 #include <limits>
 #include <random>
+#include <unordered_set>
 #include <vector>
 
 #ifdef _OPENMP
@@ -26,6 +27,68 @@ inline uint64_t splitmix64(uint64_t x) {
   x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
   x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
   return x ^ (x >> 31);
+}
+
+// Pack (f, m) into a single 64-bit key. Both indices are < 2^32 by construction.
+inline uint64_t pack_pair_key(unsigned int f, unsigned int m) {
+  return (static_cast<uint64_t>(f) << 32) | static_cast<uint64_t>(m);
+}
+
+// Returns true iff (female_plan[k], male_plan[k]) collides for some k != k'.
+// O(n) with one unordered_set allocation.
+inline bool plan_has_duplicates(const arma::uvec& fp, const arma::uvec& mp) {
+  std::unordered_set<uint64_t> seen;
+  seen.reserve(static_cast<size_t>(fp.n_elem) * 2);
+  for (unsigned int k = 0; k < fp.n_elem; ++k) {
+    if (!seen.insert(pack_pair_key(fp[k], mp[k])).second) return true;
+  }
+  return false;
+}
+
+// Try to break duplicate pairs by random slot swaps.
+// A within-side swap (male-side OR female-side) keeps that side's
+// `*_counts` multiset invariant and the other side untouched, so every
+// contribution constraint is automatically preserved. Only the (sire, dam)
+// pairing changes. Male-side swaps are tried first (per the design intent);
+// female-side swaps are used as a fallback when the male side has no
+// diversity at all (e.g. plan with a single repeated male) but the female
+// side does -- a case that male-only repair cannot fix.
+template <typename RNG>
+bool repair_duplicates(arma::uvec& fp, arma::uvec& mp, RNG& rng,
+                       int max_outer = 200) {
+  const int n = static_cast<int>(fp.n_elem);
+  if (n < 2) return !plan_has_duplicates(fp, mp);
+
+  std::uniform_int_distribution<int> pick(0, n - 1);
+  std::uniform_int_distribution<int> coin(0, 1);
+  for (int outer = 0; outer < max_outer; ++outer) {
+    // locate first duplicate slot
+    std::unordered_set<uint64_t> seen;
+    seen.reserve(static_cast<size_t>(n) * 2);
+    int dup = -1;
+    for (int k = 0; k < n; ++k) {
+      if (!seen.insert(pack_pair_key(fp[k], mp[k])).second) { dup = k; break; }
+    }
+    if (dup < 0) return true;
+
+    // Pick a random partner slot j != dup and swap on a random side
+    // (male first, falling back to female). Either side preserves both
+    // multisets, hence all contribution constraints.
+    bool moved = false;
+    for (int t = 0; t < 64; ++t) {
+      int j = pick(rng);
+      if (j == dup) continue;
+      if (coin(rng) == 0) {
+        std::swap(mp[dup], mp[j]);
+      } else {
+        std::swap(fp[dup], fp[j]);
+      }
+      moved = true;
+      break;
+    }
+    if (!moved) return false;
+  }
+  return !plan_has_duplicates(fp, mp);
 }
 
 arma::ivec count_plan_cpp(const arma::uvec& plan, const int n_parent) {
@@ -308,6 +371,25 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
 
   arma::uvec female_plan = make_feasible_parent_plan_rng(female_min, female_max, n_crosses, rng);
   arma::uvec male_plan = make_feasible_parent_plan_rng(male_min, male_max, n_crosses, rng);
+
+  // HARD CONSTRAINT: initial plan must be duplicate-free.
+  // The random male-side repair cannot break duplicates when both plans
+  // are constant (e.g. female=(a,a,..), male=(b,b,..)); for tight designs
+  // such draws can occur with non-trivial probability. Retry the joint
+  // construction (mirroring the 400-attempt pattern in
+  // make_feasible_parent_plan_rng) before declaring infeasibility.
+  bool dup_free = repair_duplicates(female_plan, male_plan, rng);
+  for (int attempt = 0; attempt < 400 && !dup_free; ++attempt) {
+    female_plan = make_feasible_parent_plan_rng(female_min, female_max, n_crosses, rng);
+    male_plan = make_feasible_parent_plan_rng(male_min, male_max, n_crosses, rng);
+    dup_free = repair_duplicates(female_plan, male_plan, rng);
+  }
+  if (!dup_free) {
+    stop("Could not construct a duplicate-free initial mating plan; "
+         "n_crosses may exceed n_females * n_males or contribution bounds "
+         "may be too tight to allow any unique-pair plan.");
+  }
+
   arma::ivec female_counts = count_plan_cpp(female_plan, n_f);
   arma::ivec male_counts = count_plan_cpp(male_plan, n_m);
 
@@ -383,6 +465,10 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
       }
       // Swap of slot indices does not change the multiset of selected parents,
       // so sum_p is unchanged. delta_sum_p is already zero.
+      // HARD CONSTRAINT: reject swaps that introduce a duplicate (f, m) pair.
+      if (plan_has_duplicates(out_female_plan, out_male_plan)) {
+        return false;
+      }
       return true;
     }
 
@@ -475,6 +561,19 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
         out_x_idx_B = n_f + static_cast<int>(B);
         out_x_amount = cA;
       }
+    }
+
+    // HARD CONSTRAINT: no duplicate (female, male) pair may exist in the
+    // proposed plan. Mirrors the existing contribution-constraint behaviour:
+    //   - returning false here makes SA's `if (!valid_move) continue;` discard
+    //     this trial and re-propose on the next iteration;
+    //   - persistent state (female_plan, male_plan, female_counts, male_counts,
+    //     current_sum_p, current_x) is untouched because every change so far
+    //     was written only to out_* parameters;
+    //   - all upstream legality checks (counts, min/max, equalize) are
+    //     untouched -- this hook only further restricts the accepted set.
+    if (plan_has_duplicates(out_female_plan, out_male_plan)) {
+      return false;
     }
 
     return valid_move;
@@ -847,6 +946,17 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
   }
   if (n_crosses <= 0) {
     stop("n_crosses must be positive.");
+  }
+  // Upfront duplicate-free feasibility check: at most n_f * n_m unique
+  // (female, male) pairs exist. Failing this check guarantees the SA's
+  // initial-plan repair will fail; throw an R-level error here, BEFORE
+  // entering the OpenMP parallel region (where Rcpp::stop would escape
+  // as an uncaught exception and terminate the process).
+  if (static_cast<long long>(n_crosses) >
+      static_cast<long long>(n_f) * static_cast<long long>(n_m)) {
+    stop("Could not construct a duplicate-free initial mating plan; "
+         "n_crosses may exceed n_females * n_males or contribution bounds "
+         "may be too tight to allow any unique-pair plan.");
   }
   if (n_pop <= 0) {
     stop("n_pop must be positive.");
