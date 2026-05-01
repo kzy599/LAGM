@@ -49,7 +49,7 @@ inline bool plan_has_duplicates(const arma::uvec& fp, const arma::uvec& mp) {
 // A within-side swap (male-side OR female-side) keeps that side's
 // `*_counts` multiset invariant and the other side untouched, so every
 // contribution constraint is automatically preserved. Only the (sire, dam)
-// pairing changes. Male-side swaps are tried first (per the design intent);
+// pairing changes. Either side is randomly chosen per outer iteration;
 // female-side swaps are used as a fallback when the male side has no
 // diversity at all (e.g. plan with a single repeated male) but the female
 // side does -- a case that male-only repair cannot fix.
