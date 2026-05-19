@@ -806,7 +806,8 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
 // mating plan, see compute_population_He_from_plan().
 // [[Rcpp::export]]
 arma::mat compute_expected_heterozygosity_cpp(const arma::mat& female_geno,
-                                              const arma::mat& male_geno) {
+                                              const arma::mat& male_geno,
+                                              Rcpp::Nullable<Rcpp::NumericVector> locus_weights = R_NilValue) {
   const unsigned int n_females = female_geno.n_rows;
   const unsigned int n_males = male_geno.n_rows;
   const unsigned int n_markers = female_geno.n_cols;
@@ -815,13 +816,31 @@ arma::mat compute_expected_heterozygosity_cpp(const arma::mat& female_geno,
     stop("Female and male genotype matrices must have the same number of columns.");
   }
 
+  // Resolve per-locus weights. NULL -> equal weighting (arma::mean), preserving
+  // bit-for-bit backward compatibility with the unweighted path.
+  arma::rowvec w;
+  bool use_weighted = false;
+  if (locus_weights.isNotNull()) {
+    Rcpp::NumericVector w_in(locus_weights);
+    if (static_cast<unsigned int>(w_in.size()) != n_markers) {
+      stop("locus_weights length must equal ncol(female_geno).");
+    }
+    w = arma::rowvec(w_in.begin(), n_markers, /*copy_aux_mem=*/true);
+    if (!w.is_finite()) stop("locus_weights must be finite.");
+    if (arma::any(w < 0.0)) stop("locus_weights must be non-negative.");
+    const double s = arma::sum(w);
+    if (s <= 0.0) stop("locus_weights must have a positive sum.");
+    w /= s;            // normalise so sum(he % w) is a weighted MEAN in [0,1]
+    use_weighted = true;
+  }
+
   arma::mat out(n_females, n_males, arma::fill::zeros);
   for (unsigned int i = 0; i < n_females; ++i) {
     arma::rowvec pf = female_geno.row(i) / 2.0;
     for (unsigned int j = 0; j < n_males; ++j) {
       arma::rowvec pm = male_geno.row(j) / 2.0;
-      arma::rowvec he = pf + pm - 2.0 * (pf % pm);
-      out(i, j) = arma::mean(he);
+      arma::rowvec he = pf + pm - 2.0 * (pf % pm);   // per-locus h_l in [0,1]
+      out(i, j) = use_weighted ? arma::sum(he % w) : arma::mean(he);
     }
   }
 
@@ -874,8 +893,9 @@ arma::mat compute_pair_relationship_diversity_cpp(const arma::mat& relationship_
 List lagm_score_grid_cpp(const arma::mat& female_geno,
                          const arma::mat& male_geno,
                          const arma::vec& female_ebv,
-                         const arma::vec& male_ebv) {
-  arma::mat diversity = compute_expected_heterozygosity_cpp(female_geno, male_geno);
+                         const arma::vec& male_ebv,
+                         Rcpp::Nullable<Rcpp::NumericVector> locus_weights = R_NilValue) {
+  arma::mat diversity = compute_expected_heterozygosity_cpp(female_geno, male_geno, locus_weights);
   arma::mat gain = compute_pair_gain_cpp(female_ebv, male_ebv);
 
   return List::create(

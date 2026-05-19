@@ -67,6 +67,17 @@
 # the matching `diversity_level` ("pair" or "pop") and a deprecation
 # warning is emitted.
 #
+# rare_weight: optional per-locus weighting for the LAGM main mode
+#   (`diversity_mode = "genomic"` and `diversity_level = "pair"`).
+#   Default FALSE recovers the original equal-weighting behaviour.
+#   TRUE => automatic rare-allele weighting `w_l ∝ 1 / max(2 p_l q_l, 1e-3)`
+#   computed from `geno_matrix`.  A numeric vector of length
+#   `ncol(geno_matrix)` may also be supplied (order must match
+#   `geno_matrix` columns; entries non-negative with positive sum).
+#   Weights are normalised internally so that the per-pair diversity
+#   remains in [0, 1].  Ignored with a warning for any other
+#   (diversity_mode, diversity_level) combination.
+#
 # This function returns an optimized mating plan only (no simulation coupling).
 lagm_plan <- function(individual_ids,
                       female_ids,
@@ -95,6 +106,7 @@ lagm_plan <- function(individual_ids,
                       warmup_iter = 100L,
                       n_pop = 50L,
                       n_threads = 4L,
+                      rare_weight = FALSE,
                       ...) {
   diversity_mode  <- match.arg(diversity_mode)
   diversity_level <- match.arg(diversity_level)
@@ -163,12 +175,52 @@ lagm_plan <- function(individual_ids,
     relationship_matrix = relationship_matrix
   )
 
+  # --- Resolve rare_weight (LAGM main mode only: genomic + pair) ---
+  # NULL -> C++ uses arma::mean (current behaviour, bit-for-bit identical).
+  is_main_mode <- identical(diversity_mode, "genomic") &&
+                  identical(diversity_level, "pair")
+  locus_weights <- NULL
+
+  if (!isFALSE(rare_weight)) {
+    if (!is_main_mode) {
+      warning("`rare_weight` is only effective for diversity_mode='genomic' + ",
+              "diversity_level='pair' (LAGM main mode); ignored for the current mode.")
+    } else if (isTRUE(rare_weight)) {
+      if (is.null(geno_matrix)) {
+        stop("`rare_weight = TRUE` requires `geno_matrix` to be supplied.")
+      }
+      gm <- as.matrix(geno_matrix)
+      p_bar <- colMeans(gm, na.rm = TRUE) / 2
+      he_l <- pmax(2 * p_bar * (1 - p_bar), 1e-3)   # eps floor to avoid blow-up
+      locus_weights <- as.numeric(1 / he_l)
+    } else if (is.numeric(rare_weight)) {
+      if (is.null(geno_matrix)) {
+        stop("Numeric `rare_weight` requires `geno_matrix` to determine locus order.")
+      }
+      L_expected <- ncol(as.matrix(geno_matrix))
+      if (length(rare_weight) != L_expected) {
+        stop(sprintf(
+          "`rare_weight` length (%d) must equal ncol(geno_matrix) (%d); ",
+          length(rare_weight), L_expected),
+          "order must match geno_matrix columns.")
+      }
+      if (anyNA(rare_weight) || any(!is.finite(rare_weight)) ||
+          any(rare_weight < 0) || sum(rare_weight) <= 0) {
+        stop("`rare_weight` must be a finite non-negative vector with positive sum.")
+      }
+      locus_weights <- as.numeric(rare_weight)
+    } else {
+      stop("`rare_weight` must be FALSE, TRUE, or a numeric vector of per-locus weights.")
+    }
+  }
+
   if (identical(diversity_mode, "genomic")) {
     score_grid <- lagm_score_grid_cpp(
       female_geno = input$female_geno,
       male_geno = input$male_geno,
       female_ebv = input$female_ebv,
-      male_ebv = input$male_ebv
+      male_ebv = input$male_ebv,
+      locus_weights = locus_weights        # NULL = equal weighting (unchanged)
     )
   } else {
     score_grid <- lagm_relationship_score_grid_cpp(
@@ -233,8 +285,16 @@ lagm_plan <- function(individual_ids,
         p_bar <- colMeans(input$geno_matrix, na.rm = TRUE) / 2
         base_div_value <- mean(2 * p_bar * (1 - p_bar))
       } else {
-        # pair-level (genomic, Ho): average observed heterozygosity.
-        base_div_value <- mean(colMeans(input$geno_matrix == 1, na.rm = TRUE))
+        # pair-level (genomic, Ho): LAGM main mode.
+        # Use the SAME per-locus weights as div_mat so that D / D_0 retains
+        # its lookahead interpretation under weighting.
+        per_locus_h <- colMeans(input$geno_matrix == 1, na.rm = TRUE)
+        if (is.null(locus_weights)) {
+          base_div_value <- mean(per_locus_h)                     # current behaviour
+        } else {
+          w_norm <- locus_weights / sum(locus_weights)
+          base_div_value <- sum(w_norm * per_locus_h)             # weighted baseline
+        }
       }
     } else {
       # Relationship mode: 1 - mean(K/2) is the group-coancestry
@@ -429,6 +489,7 @@ lagm_plan <- function(individual_ids,
 # Optional wrapper for AlphaSimR users: applies lagm_plan() then runs makeCross().
 # The deprecated `diversity_metric` argument is forwarded via `...` for
 # legacy scripts; see `lagm_plan()` for the new `diversity_level` axis.
+# See `lagm_plan()` for `rare_weight` semantics (passed through unchanged).
 lagm_mating <- function(candidate,
                         females,
                         males,
@@ -454,6 +515,7 @@ lagm_mating <- function(candidate,
                         warmup_iter = 100L,
                         n_pop = 50L,
                         n_threads = 4L,
+                        rare_weight = FALSE,
                         n_progeny = 1L,
                         sim_param = NULL,
                         ...) {
@@ -497,6 +559,7 @@ lagm_mating <- function(candidate,
     warmup_iter = warmup_iter,
     n_pop = n_pop,
     n_threads = n_threads,
+    rare_weight = rare_weight,
     ...
   )
 
