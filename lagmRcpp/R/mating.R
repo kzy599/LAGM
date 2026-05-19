@@ -70,11 +70,13 @@
 # rare_weight: optional per-locus weighting for the LAGM main mode
 #   (`diversity_mode = "genomic"` and `diversity_level = "pair"`).
 #   Default FALSE recovers the original equal-weighting behaviour.
-#   TRUE => automatic rare-allele weighting `w_l ∝ 1 / max(2 p_l q_l, 1e-3)`
-#   computed from `geno_matrix`.  A numeric vector of length
-#   `ncol(geno_matrix)` may also be supplied (order must match
-#   `geno_matrix` columns; entries non-negative with positive sum).
-#   Weights are normalised internally so that the per-pair diversity
+#   TRUE => automatic rare-allele weighting `w_l = 1 / (2 p_l q_l)` for
+#   polymorphic loci, with `w_l = 0` for monomorphic loci (which carry
+#   no per-pair ranking signal since h_l == 0 there).  A numeric vector
+#   of length `ncol(geno_matrix)` may also be supplied (order must match
+#   `geno_matrix` columns; entries non-negative with positive sum; for
+#   fixed loci prefer weight 0 rather than a small positive number).
+#   Weights are normalised internally so the per-pair diversity
 #   remains in [0, 1].  Ignored with a warning for any other
 #   (diversity_mode, diversity_level) combination.
 #
@@ -191,8 +193,16 @@ lagm_plan <- function(individual_ids,
       }
       gm <- as.matrix(geno_matrix)
       p_bar <- colMeans(gm, na.rm = TRUE) / 2
-      he_l <- pmax(2 * p_bar * (1 - p_bar), 1e-3)   # eps floor to avoid blow-up
-      locus_weights <- as.numeric(1 / he_l)
+      he_l <- 2 * p_bar * (1 - p_bar)
+      # Monomorphic loci (he_l == 0) yield h_l == 0 for every pair and
+      # therefore carry no ranking signal; assign them weight 0 so they
+      # are excluded from the normalised weighted mean. The 1e-12 cutoff
+      # is purely a floating-point guard against division by zero.
+      locus_weights <- ifelse(he_l > 1e-12, 1 / he_l, 0)
+      if (sum(locus_weights) <= 0) {
+        stop("`rare_weight = TRUE`: all loci are monomorphic in `geno_matrix`; ",
+             "no informative per-locus weights can be derived.")
+      }
     } else if (is.numeric(rare_weight)) {
       if (is.null(geno_matrix)) {
         stop("Numeric `rare_weight` requires `geno_matrix` to determine locus order.")

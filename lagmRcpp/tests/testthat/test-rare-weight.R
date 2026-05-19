@@ -122,3 +122,52 @@ test_that("numeric rare_weight with wrong length errors with 'length'", {
     regexp = "length"
   )
 })
+
+# --- Test 4: rare_weight = TRUE assigns weight 0 to monomorphic loci ---
+test_that("rare_weight = TRUE excludes monomorphic loci (weight 0)", {
+  set.seed(404L)
+  ids <- paste0("i", 1:6)
+  # 50 loci total: cols 1:10 fixed at 0 (monomorphic), cols 11:50 random polymorphic
+  geno <- cbind(
+    matrix(0L, nrow = 6, ncol = 10),
+    matrix(sample(0:2, 6 * 40, replace = TRUE), nrow = 6, ncol = 40)
+  )
+  rownames(geno) <- ids
+  ebv <- runif(6)
+
+  # Should run without inflating weights on fixed loci; pair_diversity stays in [0,1].
+  plan_true <- lagm_plan(
+    individual_ids = ids,
+    female_ids     = ids[1:3],
+    male_ids       = ids[4:6],
+    ebv_vector     = ebv,
+    n_crosses      = 3L,
+    lookahead_generations = 1L,
+    diversity_mode = "genomic",
+    geno_matrix    = geno,
+    rare_weight    = TRUE,
+    n_iter = 50L, n_pop = 3L, n_threads = 1L
+  )
+  expect_true(all(is.finite(plan_true$pair_diversity)))
+  expect_true(all(plan_true$pair_diversity >= 0))
+  expect_true(all(plan_true$pair_diversity <= 1))
+
+  # All-monomorphic geno_matrix must error with an informative message.
+  geno_fixed <- matrix(1L, nrow = 6, ncol = 20)
+  rownames(geno_fixed) <- ids
+  expect_error(
+    lagm_plan(
+      individual_ids = ids,
+      female_ids     = ids[1:3],
+      male_ids       = ids[4:6],
+      ebv_vector     = ebv,
+      n_crosses      = 3L,
+      lookahead_generations = 1L,
+      diversity_mode = "genomic",
+      geno_matrix    = geno_fixed,
+      rare_weight    = TRUE,
+      n_iter = 50L, n_pop = 3L, n_threads = 1L
+    ),
+    regexp = "monomorphic"
+  )
+})
