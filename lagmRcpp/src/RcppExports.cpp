@@ -12,14 +12,15 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // compute_expected_heterozygosity_cpp
-arma::mat compute_expected_heterozygosity_cpp(const arma::mat& female_geno, const arma::mat& male_geno);
-RcppExport SEXP _lagm_compute_expected_heterozygosity_cpp(SEXP female_genoSEXP, SEXP male_genoSEXP) {
+arma::mat compute_expected_heterozygosity_cpp(const arma::mat& female_geno, const arma::mat& male_geno, Rcpp::Nullable<Rcpp::NumericVector> locus_weights);
+RcppExport SEXP _lagm_compute_expected_heterozygosity_cpp(SEXP female_genoSEXP, SEXP male_genoSEXP, SEXP locus_weightsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const arma::mat& >::type female_geno(female_genoSEXP);
     Rcpp::traits::input_parameter< const arma::mat& >::type male_geno(male_genoSEXP);
-    rcpp_result_gen = Rcpp::wrap(compute_expected_heterozygosity_cpp(female_geno, male_geno));
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type locus_weights(locus_weightsSEXP);
+    rcpp_result_gen = Rcpp::wrap(compute_expected_heterozygosity_cpp(female_geno, male_geno, locus_weights));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -49,8 +50,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // lagm_score_grid_cpp
-List lagm_score_grid_cpp(const arma::mat& female_geno, const arma::mat& male_geno, const arma::vec& female_ebv, const arma::vec& male_ebv);
-RcppExport SEXP _lagm_lagm_score_grid_cpp(SEXP female_genoSEXP, SEXP male_genoSEXP, SEXP female_ebvSEXP, SEXP male_ebvSEXP) {
+List lagm_score_grid_cpp(const arma::mat& female_geno, const arma::mat& male_geno, const arma::vec& female_ebv, const arma::vec& male_ebv, Rcpp::Nullable<Rcpp::NumericVector> locus_weights);
+RcppExport SEXP _lagm_lagm_score_grid_cpp(SEXP female_genoSEXP, SEXP male_genoSEXP, SEXP female_ebvSEXP, SEXP male_ebvSEXP, SEXP locus_weightsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -58,7 +59,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::mat& >::type male_geno(male_genoSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type female_ebv(female_ebvSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type male_ebv(male_ebvSEXP);
-    rcpp_result_gen = Rcpp::wrap(lagm_score_grid_cpp(female_geno, male_geno, female_ebv, male_ebv));
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type locus_weights(locus_weightsSEXP);
+    rcpp_result_gen = Rcpp::wrap(lagm_score_grid_cpp(female_geno, male_geno, female_ebv, male_ebv, locus_weights));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -117,10 +119,10 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_lagm_compute_expected_heterozygosity_cpp", (DL_FUNC) &_lagm_compute_expected_heterozygosity_cpp, 2},
+    {"_lagm_compute_expected_heterozygosity_cpp", (DL_FUNC) &_lagm_compute_expected_heterozygosity_cpp, 3},
     {"_lagm_compute_pair_gain_cpp", (DL_FUNC) &_lagm_compute_pair_gain_cpp, 2},
     {"_lagm_compute_pair_relationship_diversity_cpp", (DL_FUNC) &_lagm_compute_pair_relationship_diversity_cpp, 3},
-    {"_lagm_lagm_score_grid_cpp", (DL_FUNC) &_lagm_lagm_score_grid_cpp, 4},
+    {"_lagm_lagm_score_grid_cpp", (DL_FUNC) &_lagm_lagm_score_grid_cpp, 5},
     {"_lagm_lagm_relationship_score_grid_cpp", (DL_FUNC) &_lagm_lagm_relationship_score_grid_cpp, 5},
     {"_lagm_optimize_mating_plan_cpp", (DL_FUNC) &_lagm_optimize_mating_plan_cpp, 28},
     {NULL, NULL, 0}
