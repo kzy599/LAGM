@@ -2,7 +2,7 @@
 
 
 This repository contains the code used in the unpublished manuscript:  
-**"Look-ahead genomic mating for optimizing the tradeoff between genetic gain and diversity on family-based aquaculture breeding program"**
+**"Look-ahead genomic mating optimizes the trade-off between genetic gain and inbreeding in family-based aquaculture breeding programs"**
 
 ## 📁 Project Structure
 
@@ -10,25 +10,26 @@ To reproduce the results from the study:
 
 1. **Directory Setup**  
 
-   Ensure all R and Python scripts are placed in the **same directory**.
+   Ensure all scripts are placed in the **same directory**.
 
 3. **Main Script Execution**  
 
    Run the R script:
 
    ```Shell
-   Rscript main.r
-   Rscript main_bp.r
+   Rscript Simulation_LAGM.r
+   Rscript Simulation_LAGM_fixed.r
    ```
-   This will generate all the outputs used in the paper.This will generate all outputs used in the paper. The raw genomic data must be manually downloaded from NCBI. The preprocessing code for preparing the raw sequence data before inputting it into the simulation can be found in the MNNDR repository.
+   This will generate all outputs used in the paper. The raw genomic data must be manually downloaded from NCBI. The preprocessing code for preparing the raw sequence data before inputting it into the simulation can be found in the MNNDR repository.
 
 4. **LAGM Implementation**
 
-   The core implementation of the LAGM is located in the Python script `optMatingP.py`. Note: The default parameters `female_num=50, male_num=25, female_mates=1, male_mates=2` in `setup_deap_gain` are tailored to this program. You may adjust them manually to suit your specific settings, as they define the number of males and females and their respective mating counts. The order of individual IDs must be the same for both the EBV vector and the kinship matrix.
+   see in lagmRcpp, before runing, install the packages with remotes::install_github("kzy599/LAGM", subdir = "lagmRcpp")
+
    
 5. **Dependencies**
 
-   Before running any scripts, make sure all required libraries of both R `utils.r` and Python `optMatingP.py` are installed correctly.
+   Before running any scripts, make sure all required libraries of  R `utils.r` and software for EBV calculationg (HiBlup) are installed correctly.
 
 ## Contact
 
