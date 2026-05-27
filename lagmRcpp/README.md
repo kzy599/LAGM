@@ -14,9 +14,9 @@ look-ahead objective
 score = log(Gnorm) + t · log(Dnorm)
 ```
 
-where `t = lookahead_generations`, and `Gnorm` and `Dnorm` are gain
-and diversity normalised against the empirical bounds discovered by
-two preliminary SA runs (max gain only, max diversity only).
+where `t = lookahead_generations`, and
+
+G(P,s) and D(P,M,t) denote the min-max scaled expected genetic gain of offspring in the next generation (immediate genetic gain) and the min-max scaled conditional expected heterozygosity retention ratio over t generations of selection, respectively. The min-max scaling is performed using the extreme mating plans that maximize each respective component. It makes these components comparable in a standardized relative space during optimization (Kinghorn, 2011; Gorjanc and Hickey, 2018). Therefore, as the OF inherently satisfies the equilibrium condition ∆G(P,s)/G(P,s) = -t*∆D(P,M,t)/D(P,M,t)   , this can be interpreted as seeking a mating plan on the Pareto front, where any marginal relative decrease in the available genetic diversity space after t generations must be compensated by a proportional t-fold marginal increase in immediate genetic gain. The OF explicitly defines the intertemporal marginal rate of substitution between immediate selection response and terminal diversity preservation.
 
 The diversity quantity entering the objective is `D = He / He_base`,
 i.e. the per-generation diversity retention rate. Under classical
