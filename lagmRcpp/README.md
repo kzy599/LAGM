@@ -1,32 +1,23 @@
-# lagmRcpp: Look-Ahead Genomic Mating
+# lagmRcpp: Look-Ahead Genomic Mating (LAGM)
 
-`lagmRcpp` produces mating plans that balance short-term genetic gain against
-long-term genetic diversity, optimised by a parallel simulated-annealing (SA)
+LAGM offers a generalized look-ahead framework, grounded in classical quantitative genetics and modern mating optimization, for balancing genetic gain and inbreeding.
+
+`lagmRcpp`  optimizes mating plan through a parallel simulated-annealing (SA)
 engine implemented in C++. It accepts generic inputs (IDs, EBVs, and either a
 genotype matrix or a user-supplied relationship matrix) and supports flexible
 per-parent contribution constraints.
 
 By default, `lagmRcpp` runs in **a single pass**: SA jointly selects parents,
-their contributions, and their pair assignment, optimising the look-ahead
-objective
+their contributions, and their pair assignment
 
 ```
-score = log(Gnorm) + t · log(Dnorm)
+score = logG(P, s) + t · logD(P, M, t)
 ```
 
 where `t = lookahead_generations`, and `G(P, s)` and `D(P, M, t)` denote, respectively, the min–max scaled expected genetic gain of offspring in the next generation (immediate genetic gain) and the min–max scaled conditional expected heterozygosity-retention ratio over `t` generations of selection. The min–max scaling uses the extreme mating plans that maximise each respective component, placing the two components on a comparable standardised scale during optimisation.
 
 Because the objective inherently satisfies the equilibrium condition `ΔG(P, s) / G(P, s) = −t · ΔD(P, M, t) / D(P, M, t)`, optimisation can be interpreted as seeking a mating plan on the Pareto front: any marginal relative decrease in the available genetic-diversity space after `t` generations must be compensated by a proportional, `t`-fold marginal increase in immediate genetic gain. The objective therefore makes the intertemporal marginal rate of substitution between immediate selection response and terminal diversity preservation explicit.
 
-The diversity quantity entering the objective is `D = He / He_base`, i.e. the
-per-generation diversity retention rate. Under classical quantitative-genetics
-theory `D` corresponds to `(1 − 1/(2 Ne))`, so `D^t` is the cumulative
-retention after `t` generations and is the quantity normalised into `Dnorm`.
-Because the score is `log(Gnorm) + t · log(Dnorm)`, a **1% drop in cumulative
-diversity at the `t`-generation horizon** must be compensated by roughly
-**`t`% extra current `Gnorm`** for the trade-off to break even. Increasing
-`t` therefore mechanically re-weights the objective toward long-horizon
-diversity retention without changing the formula.
 
 > **Note:** The `rare_weight` argument is an internal testing parameter only. It is disabled by default and must not be enabled or modified by users. See [Internal / testing-only arguments](#internal--testing-only-arguments) for details.
 
