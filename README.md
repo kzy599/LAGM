@@ -32,7 +32,7 @@ To reproduce the results reported in the study:
 
 4. **Dependencies**
 
-   Before running any script, ensure that all required R libraries are available — they are loaded centrally via `utils.r` — and that **HiBlup** (used for EBV calculation) is installed and configured correctly.
+   Before running any script, ensure that all required R libraries are available — they are loaded centrally via `utils.r` — and that **HiBLUP** (used for EBV calculation) is installed and configured correctly.
 
 ## Contact
 
