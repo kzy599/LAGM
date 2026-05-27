@@ -1,36 +1,39 @@
-# LAGM: Look-ahead genomic mating
+# LAGM: Look-Ahead Genomic Mating
 
-
-This repository contains the code used in the unpublished manuscript:  
-**"Look-ahead genomic mating optimizes the trade-off between genetic gain and inbreeding in family-based aquaculture breeding programs"**
+This repository contains the code accompanying the unpublished manuscript:
+**"Look-ahead genomic mating optimizes the trade-off between genetic gain and inbreeding in family-based aquaculture breeding programs."**
 
 ## 📁 Project Structure
 
-To reproduce the results from the study:
+To reproduce the results reported in the study:
 
-1. **Directory Setup**  
+1. **Directory setup**
 
-   Ensure all scripts are placed in the **same directory**.
+   Place all scripts in the **same directory**.
 
-3. **Main Script Execution**  
+2. **Main script execution**
 
-   Run the R script:
+   Run the R simulation scripts:
 
    ```Shell
    Rscript Simulation_LAGM.r
    Rscript Simulation_LAGM_fixed.r
    ```
-   This will generate all outputs used in the paper. The raw genomic data must be manually downloaded from NCBI. The preprocessing code for preparing the raw sequence data before inputting it into the simulation can be found in the MNNDR repository.
 
-4. **LAGM Implementation**
+   These scripts generate all outputs used in the paper. The raw genomic data must be downloaded manually from NCBI. The preprocessing pipeline that converts the raw sequence data into the format consumed by the simulation lives in the [MNNDR](https://github.com/kzy599/MNNDR) repository.
 
-   see in lagmRcpp, before runing, install the packages with remotes::install_github("kzy599/LAGM", subdir = "lagmRcpp")
+3. **LAGM implementation**
 
-   
-5. **Dependencies**
+   The LAGM method is implemented in the `lagmRcpp` subdirectory. Before running the simulations, install the package from GitHub:
 
-   Before running any scripts, make sure all required libraries of  R `utils.r` and software for EBV calculationg (HiBlup) are installed correctly.
+   ```r
+   remotes::install_github("kzy599/LAGM", subdir = "lagmRcpp")
+   ```
+
+4. **Dependencies**
+
+   Before running any script, ensure that all required R libraries are available — they are loaded centrally via `utils.r` — and that **HiBlup** (used for EBV calculation) is installed and configured correctly.
 
 ## Contact
 
-If you encounter any issues or have questions about the code, feel free to contact me at:`kangziyi1998@163.com`
+If you encounter any issues or have questions about the code, please contact: `kangziyi1998@163.com`
