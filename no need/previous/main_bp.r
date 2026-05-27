@@ -1,10 +1,10 @@
 set.seed(42)
-randomseed = sample(.Machine$integer.max,10)#.Machine$integer.max is 2147483647
-for(r in 1:10){
+randomseed = sample(.Machine$integer.max,20)#.Machine$integer.max is 2147483647
+for(r in 61:70){
 rm(list = setdiff(ls(), c("r","randomseed")))
 gc()
-set.seed(randomseed[r])
-nG = 5
+set.seed(randomseed[(r-60)])
+nG = 20
 dir = "/home/kangziyi/poster/BaseMapHaplo/"
 mapFile = "mergedMap.csv"
 haploFile = "mergedHaplo.csv"
@@ -160,13 +160,8 @@ if(g!=1){
   ped_rl2 = rbind(ped_ne,createPed(pop = candidate))
 }
 
-  if(g == 1){
-    input_data2 = makejson(candidate = candidate,females = females,males = males,gen = ((nG+1)-g),He = He)
-    # input_data2 <- input_data
+  input_data2 <- makejson(candidate = candidate,females = females,males = males,gen = 7,He = He)
 
-  }else{
-    input_data2 <- makejson(candidate = candidate,females = females,males = males,gen = ((nG+1)-g),He = He)
-  }
   # Specify the output JSON file path
   output_json_path <- "input_data2.json"
 
@@ -182,205 +177,215 @@ if(g!=1){
   #pop = selectInd(pop,nInd = 1000,use = "rand")
 
   pop_rl2 <- makeCross(pop = candidate, crossPlan = mating_plans, nProgeny = nProgenyPerCross, simParam = SP)
+
   keep_rl2 <- selectWithinFam(pop = pop_rl2,nInd = 20,use = "rand",simParam = SP)
 
 
-  if(g!=1){
-    pop_tc <- makeEBV(pop_tc)
-    candidate <- createCandidate(pop_tc)
-    ped_tc = rbind(ped_tc,createPed(pop = candidate))
-  }else{
-    ped_tc = rbind(ped_ne,createPed(pop = candidate))
-  }
-  
-  # pop_tc <- selectCross(candidate,
-  #                    nFemale = nDam,nMale = nSire,
-  #                    nCrosses = nCrosses,nProgeny = nProgenyPerCross,
-  #                    use = "ebv",trait = 1,
-  #                    simParam = SP)
-  pop_tc <- ocs(
-        pop = candidate,
-        nCrosses = nCrosses,
-        nProgenyPerCross = nProgenyPerCross,
-        nFemalesMax = nDam,
-        nMalesMax = nSire,
-        equalizeFemaleContributions =TRUE,
-        equalizeMaleContributions = TRUE,
-        targetDegree = 0,
-        use = "ebv"
-  )
-  keep_tc <- selectWithinFam(pop = pop_tc,nInd = 20,use = "rand",simParam = SP)
-
-  if(g!=1){
-    pop_ocs <- makeEBV(pop_ocs)
-    candidate <- createCandidate(pop_ocs)
-    ped_ocs = rbind(ped_ocs,createPed(pop = candidate))
-  }else{
-    ped_ocs = rbind(ped_ne,createPed(pop = candidate))
-  }
-
-  # candidate@ebv = matrix(candidate@gv[,2],ncol = 1)
-
-  pop_ocs <- ocs(
-        pop = candidate,
-        nCrosses = nCrosses,
-        nProgenyPerCross = nProgenyPerCross,
-        nFemalesMax = nDam,
-        nMalesMax = nSire,
-        equalizeFemaleContributions =TRUE,
-        equalizeMaleContributions = TRUE,
-        targetDegree = 45,
-        use = "ebv"
-  )
-  keep_ocs <- selectWithinFam(pop = pop_ocs,nInd = 20,use = "rand",simParam = SP)
-
 if(g!=1){
-    pop_ran <- makeEBV(pop_ran)
-    candidate <- createCandidate(pop_ran)
-    ped_ran = rbind(ped_ran,createPed(pop = candidate))
-  }else{
-   ped_ran = rbind(ped_ne,createPed(pop = candidate))
+  pop_rl2_3 <- makeEBV(pop_rl2_3)
 
-  }
-  pop_ran <- selectCross(candidate,
-                     nFemale = nDam,nMale = nSire,
-                     nCrosses = nCrosses,nProgeny = nProgenyPerCross,
-                     use = "rand",trait = 1,
-                     simParam = SP)
-  keep_ran <- selectWithinFam(pop = pop_ran,nInd = 20,use = "rand",simParam = SP)
+  females <- selectWithinFam(pop_rl2_3,nInd=4,use = "ebv",sex = "F",trait = 1)
 
-
-
-  if(g!=1){
-    pop_65 <- makeEBV(pop_65)
-    candidate <- createCandidate(pop_65)
-    ped_65 = rbind(ped_65,createPed(pop = candidate))
-  }else{
-    ped_65 = rbind(ped_ne,createPed(pop = candidate))
-  }
-  pop_65 <- ocs(
-        pop = candidate,
-        nCrosses = nCrosses,
-        nProgenyPerCross = nProgenyPerCross,
-        nFemalesMax = nDam,
-        nMalesMax = nSire,
-        equalizeFemaleContributions =TRUE,
-        equalizeMaleContributions = TRUE,
-        targetDegree = 65,
-        use = "ebv"
-  )
-  keep_65 <- selectWithinFam(pop = pop_65,nInd = 20,use = "rand",simParam = SP)
-
-  if(g!=1){
-    pop_25 <- makeEBV(pop_25)
-    candidate <- createCandidate(pop_25)
-    ped_25 = rbind(ped_25,createPed(pop = candidate))
-  }else{
-    ped_25 = rbind(ped_ne,createPed(pop = candidate))
-  }
-  pop_25 <- ocs(
-        pop = candidate,
-        nCrosses = nCrosses,
-        nProgenyPerCross = nProgenyPerCross,
-        nFemalesMax = nDam,
-        nMalesMax = nSire,
-        equalizeFemaleContributions =TRUE,
-        equalizeMaleContributions = TRUE,
-        targetDegree = 25,
-        use = "ebv"
-  )
-  keep_25 = selectWithinFam(pop = pop_25,nInd = 20,use = "rand",simParam = SP)
-
-  if(g!=1){
-    pop_90 <- makeEBV(pop_90)
-    candidate <- createCandidate(pop_90)
-    ped_90 = rbind(ped_90,createPed(pop = candidate))
-  }else{
-    ped_90 = rbind(ped_ne,createPed(pop = candidate))
-  }
-  # candidate@ebv[,1] = candidate@gv[,2]
-  pop_90 <- ocs(
-        pop = candidate,
-        nCrosses = nCrosses,
-        nProgenyPerCross = nProgenyPerCross,
-        nFemalesMax = nDam,
-        nMalesMax = nSire,
-        equalizeFemaleContributions =TRUE,
-        equalizeMaleContributions = TRUE,
-        targetDegree = 90,
-        use = "ebv"
-  )
-  keep_90 = selectWithinFam(pop = pop_90,nInd = 20,use = "rand",simParam = SP)
-
-
-  if(g!=1){
-    pop_rate <- makeEBV(pop_rate)
-    candidate <- createCandidate(pop_rate)
-    ped_rate = rbind(ped_rate,createPed(pop = candidate))
-  }else{
-    ped_rate = rbind(ped_ne,createPed(pop = candidate))
-  }
-  # candidate@ebv[,1] = candidate@gv[,2]
-  pop_rate <- ocs(
-        pop = candidate,
-        nCrosses = nCrosses,
-        nProgenyPerCross = nProgenyPerCross,
-        nFemalesMax = nDam,
-        nMalesMax = nSire,
-        equalizeFemaleContributions =TRUE,
-        equalizeMaleContributions = TRUE,
-        targetCoancestryRate = 0.01,
-        use = "ebv"
-  )
-  keep_rate = selectWithinFam(pop = pop_rate,nInd = 20,use = "rand",simParam = SP)
-
-
-
-  if(g!=1){
-  pop_rl <- makeEBV(pop_rl)
-
-  females <- selectWithinFam(pop_rl,nInd=4,use = "ebv",sex = "F",trait = 1)
-
-  males <- selectWithinFam(pop_rl,nInd=2,use = "ebv",sex = "M",trait = 1)
+  males <- selectWithinFam(pop_rl2_3,nInd=2,use = "ebv",sex = "M",trait = 1)
   
   candidate = c(females,males)
 
-  He = calHe(pop_rl)
+  He = calHe(pop_rl2_3)
 
-  ped_rl = rbind(ped_rl,createPed(pop = candidate))
+  ped_rl2_3 = rbind(ped_rl2_3,createPed(pop = candidate))
 
 }else{
 
-  ped_rl = rbind(ped_ne,createPed(pop = candidate))
+  ped_rl2_3 = rbind(ped_ne,createPed(pop = candidate))
 }
 
-A_matrix = calAmatrix(ped = ped_rl,keep = candidate@id)
+ input_data2_3 <- makejson(candidate = candidate,females = females,males = males,gen = 3,He = He)
 
-  if(g == 1){
-    input_data = makejson(candidate = candidate,females = females,males = males,gen = ((nG+1)-g),He = He,A_matrix = A_matrix,gen_pre = g)
-    # input_data2 <- input_data
-
-  }else{
-    input_data <- makejson(candidate = candidate,females = females,males = males,gen = ((nG+1)-g),He = He,A_matrix = A_matrix,gen_pre = g)
-  }
   # Specify the output JSON file path
-  output_json_path <- "input_data.json"
+  output_json_path <- "input_data2_3.json"
 
   # Write the JSON file
-  write_json(input_data, path = output_json_path, pretty = TRUE, auto_unbox = TRUE)
+  write_json(input_data2_3, path = output_json_path, pretty = TRUE, auto_unbox = TRUE)
 
   cat(paste("JSON input file has been generated at", output_json_path, "\n"))
 
-  system('bash -c "source activate tf-gpu && python optMating.py input_data.json"')
+  system('bash -c "source activate tf-gpu && python optMatingP.py input_data2_3.json"')
 
-  mating_plans <- fromJSON("breeding_pairs.json")[[1]]
+  mating_plans <- fromJSON("breeding_pairs2.json")[[1]]
   mating_plans<- as.matrix(mating_plans)
   #pop = selectInd(pop,nInd = 1000,use = "rand")
 
-  pop_rl <- makeCross(pop = candidate, crossPlan = mating_plans, nProgeny = nProgenyPerCross, simParam = SP)
-  keep_rl <- selectWithinFam(pop = pop_rl,nInd = 20,use = "rand",simParam = SP)
+  pop_rl2_3 <- makeCross(pop = candidate, crossPlan = mating_plans, nProgeny = nProgenyPerCross, simParam = SP)
+  
+  keep_rl2_3 <- selectWithinFam(pop = pop_rl2_3,nInd = 20,use = "rand",simParam = SP)
 
-  if(!exists("snpfre_v")){
+
+if(g!=1){
+  pop_rl2_5 <- makeEBV(pop_rl2_5)
+
+  females <- selectWithinFam(pop_rl2_5,nInd=4,use = "ebv",sex = "F",trait = 1)
+
+  males <- selectWithinFam(pop_rl2_5,nInd=2,use = "ebv",sex = "M",trait = 1)
+  
+  candidate = c(females,males)
+
+  He = calHe(pop_rl2_5)
+
+  ped_rl2_5 = rbind(ped_rl2_5,createPed(pop = candidate))
+
+}else{
+
+  ped_rl2_5 = rbind(ped_ne,createPed(pop = candidate))
+}
+
+  input_data2_5 <- makejson(candidate = candidate,females = females,males = males,gen = 5,He = He)
+
+  # Specify the output JSON file path
+  output_json_path <- "input_data2_5.json"
+
+  # Write the JSON file
+  write_json(input_data2_5, path = output_json_path, pretty = TRUE, auto_unbox = TRUE)
+
+  cat(paste("JSON input file has been generated at", output_json_path, "\n"))
+
+  system('bash -c "source activate tf-gpu && python optMatingP.py input_data2_5.json"')
+
+  mating_plans <- fromJSON("breeding_pairs2.json")[[1]]
+  mating_plans<- as.matrix(mating_plans)
+  #pop = selectInd(pop,nInd = 1000,use = "rand")
+
+  pop_rl2_5 <- makeCross(pop = candidate, crossPlan = mating_plans, nProgeny = nProgenyPerCross, simParam = SP)
+  
+  keep_rl2_5 <- selectWithinFam(pop = pop_rl2_5,nInd = 20,use = "rand",simParam = SP)
+
+
+
+if(g!=1){
+  pop_rl2_5m <- makeEBV(pop_rl2_5m)
+
+  females <- selectWithinFam(pop_rl2_5m,nInd=4,use = "ebv",sex = "F",trait = 1)
+
+  males <- selectWithinFam(pop_rl2_5m,nInd=2,use = "ebv",sex = "M",trait = 1)
+  
+  candidate = c(females,males)
+
+  He = calHe(pop_rl2_5m)
+
+  ped_rl2_5m = rbind(ped_rl2_5m,createPed(pop = candidate))
+
+}else{
+
+  ped_rl2_5m = rbind(ped_ne,createPed(pop = candidate))
+}
+
+  # input_data2_5m <- makejson(candidate = candidate,females = females,males = males,gen = calres(gen = g,Interval = 5),He = He)
+  input_data2_5m <- makejson(candidate = candidate,females = females,males = males,gen = 1,He = He)
+  # Specify the output JSON file path
+  output_json_path <- "input_data2_5m.json"
+
+  # Write the JSON file
+  write_json(input_data2_5m, path = output_json_path, pretty = TRUE, auto_unbox = TRUE)
+
+  cat(paste("JSON input file has been generated at", output_json_path, "\n"))
+
+  system('bash -c "source activate tf-gpu && python optMatingP.py input_data2_5m.json"')
+
+  mating_plans <- fromJSON("breeding_pairs2.json")[[1]]
+  mating_plans<- as.matrix(mating_plans)
+  #pop = selectInd(pop,nInd = 1000,use = "rand")
+
+  pop_rl2_5m <- makeCross(pop = candidate, crossPlan = mating_plans, nProgeny = nProgenyPerCross, simParam = SP)
+  
+  keep_rl2_5m <- selectWithinFam(pop = pop_rl2_5m,nInd = 20,use = "rand",simParam = SP)
+
+
+
+
+
+if(g!=1){
+  pop_rl2_10m <- makeEBV(pop_rl2_10m)
+
+  females <- selectWithinFam(pop_rl2_10m,nInd=4,use = "ebv",sex = "F",trait = 1)
+
+  males <- selectWithinFam(pop_rl2_10m,nInd=2,use = "ebv",sex = "M",trait = 1)
+  
+  candidate = c(females,males)
+
+  He = calHe(pop_rl2_10m)
+
+  ped_rl2_10m = rbind(ped_rl2_10m,createPed(pop = candidate))
+
+}else{
+
+  ped_rl2_10m = rbind(ped_ne,createPed(pop = candidate))
+}
+
+  # input_data2_10m <- makejson(candidate = candidate,females = females,males = males,gen = calres(gen = g,Interval = 10),He = He)
+  input_data2_10m <- makejson(candidate = candidate,females = females,males = males,gen = 2,He = He)
+  # Specify the output JSON file path
+  output_json_path <- "input_data2_10m.json"
+
+  # Write the JSON file
+  write_json(input_data2_10m, path = output_json_path, pretty = TRUE, auto_unbox = TRUE)
+
+  cat(paste("JSON input file has been generated at", output_json_path, "\n"))
+
+  system('bash -c "source activate tf-gpu && python optMatingP.py input_data2_10m.json"')
+
+  mating_plans <- fromJSON("breeding_pairs2.json")[[1]]
+  mating_plans<- as.matrix(mating_plans)
+  #pop = selectInd(pop,nInd = 1000,use = "rand")
+
+  pop_rl2_10m <- makeCross(pop = candidate, crossPlan = mating_plans, nProgeny = nProgenyPerCross, simParam = SP)
+  
+  keep_rl2_10m <- selectWithinFam(pop = pop_rl2_10m,nInd = 20,use = "rand",simParam = SP)
+
+
+# if(g!=1){
+#   pop_rl <- makeEBV(pop_rl)
+
+#   females <- selectWithinFam(pop_rl,nInd=4,use = "ebv",sex = "F",trait = 1)
+
+#   males <- selectWithinFam(pop_rl,nInd=2,use = "ebv",sex = "M",trait = 1)
+  
+#   candidate = c(females,males)
+
+#   He = calHe(pop_rl)
+
+#   ped_rl = rbind(ped_rl,createPed(pop = candidate))
+
+# }else{
+
+#   ped_rl = rbind(ped_ne,createPed(pop = candidate))
+# }
+
+# A_matrix = calAmatrix(ped = ped_rl,keep = candidate@id)
+
+#   if(g == 1){
+#     input_data = makejson(candidate = candidate,females = females,males = males,gen = ((nG+1)-g),He = He,A_matrix = A_matrix,gen_pre = g)
+#     # input_data2 <- input_data
+
+#   }else{
+#     input_data <- makejson(candidate = candidate,females = females,males = males,gen = ((nG+1)-g),He = He,A_matrix = A_matrix,gen_pre = g)
+#   }
+#   # Specify the output JSON file path
+#   output_json_path <- "input_data.json"
+
+#   # Write the JSON file
+#   write_json(input_data, path = output_json_path, pretty = TRUE, auto_unbox = TRUE)
+
+#   cat(paste("JSON input file has been generated at", output_json_path, "\n"))
+
+#   system('bash -c "source activate tf-gpu && python optMating.py input_data.json"')
+
+#   mating_plans <- fromJSON("breeding_pairs.json")[[1]]
+#   mating_plans<- as.matrix(mating_plans)
+#   #pop = selectInd(pop,nInd = 1000,use = "rand")
+
+#   pop_rl <- makeCross(pop = candidate, crossPlan = mating_plans, nProgeny = nProgenyPerCross, simParam = SP)
+#   keep_rl <- selectWithinFam(pop = pop_rl,nInd = 20,use = "rand",simParam = SP)
+
+if(!exists("snpfre_v")){
   snp_012_dt = pullSnpGeno(pop_founder)
   snpfre_v <- apply(snp_012_dt, 2, function(x){
   single_snpfre_s <- sum(x, na.rm = TRUE)/(2*length(x))
@@ -388,10 +393,10 @@ A_matrix = calAmatrix(ped = ped_rl,keep = candidate@id)
 })
 }
 
-pop_all = list(pop_tc,pop_ocs,pop_ran,pop_rl2,pop_65,pop_25,pop_90,pop_rate,pop_rl)
-keep_all = list(keep_tc,keep_ocs,keep_ran,keep_rl2,keep_65,keep_25,keep_90,keep_rate,keep_rl)
-ped_all = list(ped_tc,ped_ocs,ped_ran,ped_rl2,ped_65,ped_25,ped_90,ped_rate,ped_rl)
-app = c("tc","ocs45","ran","rl2","ocs65","ocs25","ocs90","ocsrate","rl")
+pop_all = list(pop_rl2,pop_rl2_3,pop_rl2_5,pop_rl2_5m,pop_rl2_10m)
+keep_all = list(keep_rl2,keep_rl2_3,keep_rl2_5,keep_rl2_5m,keep_rl2_10m)
+ped_all = list(ped_rl2,ped_rl2_3,ped_rl2_5,ped_rl2_5m,ped_rl2_10m)
+app = c("rl2","rl2_3","rl2_5","rl2_5m","rl2_10m")
 gv = c()
 genetic = c()
 genic = c()
