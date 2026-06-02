@@ -3,7 +3,7 @@ Type: Package
 Title: Pure Rcpp Look-Ahead Genomic Mating
 Version: 0.1.0
 Authors@R: c(
-    person(given = "Kangziyi", family = "User", role = c("aut", "cre"), email = "user@example.com")
+    person(given = "Ziyi", family = "Kang", role = c("aut", "cre"), email = "kangziyi1998@163.com")
     )
 Description: Refactored look-ahead genomic mating tools built around Rcpp,
     generic matrix inputs, flexible mating contribution constraints, and
