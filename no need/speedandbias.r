@@ -24,7 +24,7 @@ if(Fix_fmRatio){
   m_max=4L
 }
 
-source("utils.r")
+source("utils_ms.r")
 
 calbias = function(pop){
 y <- pop@pheno[, 1]
