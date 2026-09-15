@@ -438,20 +438,3 @@ fwrite(output,file = paste("outputbias",r,".csv",sep = ""),sep = ",")
 fwrite(output_sec,file = paste("outputsec",r,".csv",sep = ""),sep = ",")
 print(output)
 }
-
-# model <- lm(gain_std ~ lost_diversity * app, data = dt_plot)
-
-# # 查看整体方差分析表
-# anova(model)
-
-# library(emmeans)
-
-# # 计算并比较各个策略的斜率 (trend)
-# # var = "Diversity" 告诉软件我们要比较的是关于 Diversity 的斜率
-# slope_comparison <- emtrends(model, pairwise ~ app, var = "lost_diversity")
-
-# # 1. 查看每个策略的具体斜率数值和置信区间
-# print(slope_comparison$emtrends)
-
-# # 2. 查看两两比较的显著性结果（P值）
-# print(slope_comparison$contrasts)
