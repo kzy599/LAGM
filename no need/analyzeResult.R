@@ -56,7 +56,7 @@ dat_full = dat[!dat$programs%in%c("5_generation","10_generation","15_generation"
 dat_full = dat_full[!(dat_full$app%in%c("rl2","rl")&dat_full$programs=="20_generation"),]
 dat_full$programs = "20_generation"
 dat_full = as.data.table(dat_full)
-dat_full <- dat_full[app%in%c("ocs25","ocs45","ocs65","ocs90","rl2")|app%flike%"rl2",]
+dat_full <- dat_full[app%in%c("ocs25","ocs45","ocs65","ocs90","rl2","tc","ran")|app%flike%"rl2",]
 
 
 #' 每 rep 用稳健回归拟合 y ~ x,在固定 x 值处预测 y,跨 rep 画 boxplot
@@ -375,9 +375,9 @@ plot_dt$programs = factor(plot_dt$programs,
                               labels = c("5-generation", "10-generation", "15-generation", "20-generation"))
 
 plot_dt$app = factor(plot_dt$app,
-                          levels = c("rl2_5m", "rl2_10m", "rl2_3","rl2_5","rl2","ocs25",
+                          levels = c("rl2_5m", "rl2_10m", "rl2_3","rl2_5","rl2","tc","ocs25",
                                      "ocs45", "ocs65", "ocs90", "ran"),
-                          labels = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "GOCS25",
+                          labels = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "TC","GOCS25",
                                      "GOCS45", "GOCS65", "GOCS90", "Random"))
 res_t <- plot_robust_predicted_boxplot(
     plot_dt,
@@ -394,11 +394,22 @@ res_t <- plot_robust_predicted_boxplot(
     #                GOCS  = "#2ca02c",  GOCS25= "#1F77B4",
     #                GOCS45 = "#9467bd",  GOCS65= "#f4a582",
     #                GOCS90 = "#8b0000",  Random  = "#999999")
-    colors     = c(LAGM1   = "#1f3b73",  LAGM2   = "#d62728",
-                   LAGM3  = "#2ca02c",  GOCS25= "#1F77B4",
-                   GOCS45 = "#9467bd",  GOCS65= "#f4a582",
-                   GOCS90 = "#8b0000",  Random  = "#999999",
-                   LAGM5 = "#79465e", LAGM7 = "#930c83")
+      colors = c(
+        # --- LAGM 组：冷色阶渐变（窗口越长，颜色越深邃）---
+        "LAGM1"   = "#7bccc4",  # 浅青水绿 (Window = 1)
+        "LAGM2"   = "#43a2ca",  # 晴空蓝   (Window = 2)
+        "LAGM3"   = "#0868ac",  # 宝石蓝   (Window = 3)
+        "LAGM5"   = "#084081",  # 深海蓝   (Window = 5)
+        "LAGM7"   = "#49006a",  # 极深紫蓝 (Window = 7)
+        # --- 传统对照组 ---
+        "TC"      = "#e41a1c",  # 亮红 (GOCS 0°)
+        "GOCS25"  = "#ff7f00",  # 亮橙 (25°)
+        "GOCS45"  = "#984ea3",  # 紫色 (45°)
+        "GOCS65"  = "#f4a582",  # 珊瑚粉 (65°)
+        "GOCS90"  = "#800000",  # 暗红 (90°)
+        # --- 对照组 ---
+        "Random"  = "#8c8c8c"   # 灰色
+    )
 )
 print(res_t$plot)
 ggsave("Figure 5.pdf", res_t$plot , width = 15, height = 10, dpi = 300,device = cairo_pdf)
@@ -642,19 +653,56 @@ plot_dt$programs = factor(plot_dt$programs,
                                          "15_generation", "20_generation"),
                               labels = c("5-generation", "10-generation", "15-generation", "20-generation"))
 plot_dt$app = factor(plot_dt$app,
-                          levels = c("rl2_5m", "rl2_10m", "rl2_3","rl2_5","rl2","ocs25",
+                          levels = c("rl2_5m", "rl2_10m", "rl2_3","rl2_5","rl2","tc","ocs25",
                                      "ocs45", "ocs65", "ocs90", "ran"),
-                          labels = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "GOCS25",
+                          labels = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7","TC", "GOCS25",
                                      "GOCS45", "GOCS65", "GOCS90", "Random"))
-colors     = c(LAGM1   = "#1f3b73",  LAGM2   = "#d62728",
-                   LAGM3  = "#2ca02c",  GOCS25= "#1F77B4",
-                   GOCS45 = "#f4a582",  GOCS65= "#9467bd",
-                   GOCS90 = "#8b0000",  Random  = "#999999",
-                   LAGM5 = "#79465e", LAGM7 = "#930c83")
+colors = c(
+        # --- LAGM 组：冷色阶渐变（窗口越长，颜色越深邃）---
+        "LAGM1"   = "#7bccc4",  # 浅青水绿 (Window = 1)
+        "LAGM2"   = "#43a2ca",  # 晴空蓝   (Window = 2)
+        "LAGM3"   = "#0868ac",  # 宝石蓝   (Window = 3)
+        "LAGM5"   = "#084081",  # 深海蓝   (Window = 5)
+        "LAGM7"   = "#49006a",  # 极深紫蓝 (Window = 7)
+        # --- 传统对照组 ---
+        "TC"      = "#e41a1c",  # 亮红 (GOCS 0°)
+        "GOCS25"  = "#ff7f00",  # 亮橙 (25°)
+        "GOCS45"  = "#984ea3",  # 紫色 (45°)
+        "GOCS65"  = "#f4a582",  # 珊瑚粉 (65°)
+        "GOCS90"  = "#800000",  # 暗红 (90°)
+        # --- 对照组 ---
+        "Random"  = "#8c8c8c"   # 灰色
+    )
+
+
+xvar = "inb"
+yvar = "gain"
+x_bar = "Inbreeding"
+y_bar = "Genetic gain"
+
+xvar = "gen"
+yvar = "gain"
+x_bar = "Generation"
+y_bar = "Genetic gain"
+
+xvar = "gen"
+yvar = "inb"
+x_bar = "Generation"
+y_bar = "Inbreeding"
+
+xvar = "gen"
+yvar = "He"
+x_bar = "Generation"
+y_bar = "Expected heterozygosity"
+
+xvar = "gen"
+yvar = "genetic"
+x_bar = "Generation"
+y_bar = "Additive genetic variance"
 P = plot_tradeoff_arrow(
     plot_dt,
-    x_var  = "inb",
-    y_var  = "gain",
+    x_var  = xvar,
+    y_var  = yvar,
     # progs  = "10 gen",
     # x_reverse = FALSE,
     # sec_axis_transform = ~ 1 - .,
@@ -663,11 +711,22 @@ P = plot_tradeoff_arrow(
     fit_line = TRUE,
     colors = colors
 )+labs(
-  x = "Inbreeding",     # 修改 x 轴标题
-  y = "Genetic gain"    # 修改 y 轴标题
+  x = x_bar,     # 修改 x 轴标题
+  y = y_bar    # 修改 y 轴标题
 )+theme(strip.background = element_rect(fill = NA, color = NA))
 
-ggsave("Figure S1.pdf", P , width = 15, height = 10, dpi = 300,device = cairo_pdf)
+ggsave("Figure S1.pdf", P+coord_cartesian(ylim = c(0.0, 13),xlim=c(0,1)), width = 15, height = 10, dpi = 300,device = cairo_pdf)
+ggsave("Figure S2.pdf", P+coord_cartesian(ylim = c(0.0,13) ), width = 15, height = 10, dpi = 300,device = cairo_pdf)
+ggsave("Figure S3.pdf", P+coord_cartesian(ylim = c(0, 1)) , width = 15, height = 10, dpi = 300,device = cairo_pdf)
+ggsave("Figure S4.pdf", P +coord_cartesian(ylim = c(0, 0.3)), width = 15, height = 10, dpi = 300,device = cairo_pdf)
+ggsave("Figure S5.pdf", P +coord_cartesian(ylim = c(0, 0.75)), width = 15, height = 10, dpi = 300,device = cairo_pdf)
+
+ggsave("Figure S6.pdf", P+coord_cartesian(ylim = c(0.0, 13),xlim=c(0,1)), width = 15, height = 10, dpi = 300,device = cairo_pdf)
+ggsave("Figure S7.pdf", P+coord_cartesian(ylim = c(0.0,13) ), width = 15, height = 10, dpi = 300,device = cairo_pdf)
+ggsave("Figure S8.pdf", P+coord_cartesian(ylim = c(0, 1)) , width = 15, height = 10, dpi = 300,device = cairo_pdf)
+ggsave("Figure S9.pdf", P +coord_cartesian(ylim = c(0, 0.3)), width = 15, height = 10, dpi = 300,device = cairo_pdf)
+ggsave("Figure S10.pdf", P +coord_cartesian(ylim = c(0, 0.75)), width = 15, height = 10, dpi = 300,device = cairo_pdf)
+
 
 library(patchwork)
 # 假设 p1 是你截图中的图 (Y轴: Genetic gain)
@@ -900,29 +959,74 @@ compute_per_gen_rates <- function(dat,
       if (nG > 0) dG <- (G_final - G_0) / nG
     }
 
-    # ----- 后半段 (稳态) -----
-    dF_late <- dG_late <- NA_real_
-    if (late_half) {
-      mid <- g_vec[1] + nG / 2
+    # ----- 前后半段 (Early & Late, pergen 方式) -----
+    dF_early <- dG_early <- dF_late <- dG_late <- NA_real_
+    
+    #   mid <- g_vec[1] + nG / 2
+      mid <- 3
+      
+      # ===== 1. 前半段 (Early: <= mid) =====
+      early_idx <- which(g_vec <= mid)
+      if (length(early_idx) >= 2) {
+        F_e <- F_vec[early_idx]; G_e <- G_vec[early_idx]
+        
+        # ΔF early (pergen)
+        F_prev <- head(F_e, -1); F_curr <- tail(F_e, -1)
+        keep <- F_prev < 1
+        if (sum(keep) > 0) {
+          dF_t <- (F_curr[keep] - F_prev[keep]) / (1 - F_prev[keep])
+          if (length(dF_t) > 0) dF_early <- mean(dF_t, na.rm = TRUE)
+        }
+        
+        # ΔG early (pergen)
+        dG_t <- diff(G_e)
+        if (length(dG_t) > 0) dG_early <- mean(dG_t, na.rm = TRUE)
+      }
+      
+      # ===== 2. 后半段 (Late: >= mid) =====
       late_idx <- which(g_vec >= mid)
       if (length(late_idx) >= 2) {
-        F_late <- F_vec[late_idx]; g_late <- g_vec[late_idx]
-        keep <- F_late < 1
-        if (sum(keep) >= 2) {
-          fit_l <- tryCatch(lm(log(1 - F_late[keep]) ~ g_late[keep]),
-                            error = function(e) NULL)
-          if (!is.null(fit_l)) dF_late <- 1 - exp(coef(fit_l)[2])
+        F_l <- F_vec[late_idx]; G_l <- G_vec[late_idx]
+        
+        # ΔF late (pergen)
+        F_prev <- head(F_l, -1); F_curr <- tail(F_l, -1)
+        keep <- F_prev < 1
+        if (sum(keep) > 0) {
+          dF_t <- (F_curr[keep] - F_prev[keep]) / (1 - F_prev[keep])
+          if (length(dF_t) > 0) dF_late <- mean(dF_t, na.rm = TRUE)
         }
-        fit_g <- tryCatch(lm(G_vec[late_idx] ~ g_late), error = function(e) NULL)
-        if (!is.null(fit_g)) dG_late <- unname(coef(fit_g)[2])
+        
+        # ΔG late (pergen)
+        dG_t <- diff(G_l)
+        if (length(dG_t) > 0) dG_late <- mean(dG_t, na.rm = TRUE)
       }
-    }
+    
+    #   # ----- 后半段 (稳态) -----
+    # dF_late <- dG_late <- NA_real_
+    # if (late_half) {
+    #   mid <- g_vec[1] + nG / 2
+    #     # mid <- 3
+    #   late_idx <- which(g_vec >= mid)
+    # #   late_idx <- which(g_vec <= mid)
+    #   if (length(late_idx) >= 2) {
+    #     F_late <- F_vec[late_idx]; g_late <- g_vec[late_idx]
+    #     keep <- F_late < 1
+    #     if (sum(keep) >= 2) {
+    #       fit_l <- tryCatch(lm(log(1 - F_late[keep]) ~ g_late[keep]),
+    #                         error = function(e) NULL)
+    #       if (!is.null(fit_l)) dF_late <- 1 - exp(coef(fit_l)[2])
+    #     }
+    #     fit_g <- tryCatch(lm(G_vec[late_idx] ~ g_late), error = function(e) NULL)
+    #     if (!is.null(fit_g)) dG_late <- unname(coef(fit_g)[2])
+    #   }
+    # }
 
     Ne <- if (is.na(dF) || dF <= 0) NA_real_ else 1 / (2 * dF)
 
     list(dF = unname(dF), dF_se = unname(dF_se), dF_R2 = unname(dF_R2),
          dG = unname(dG), dG_se = unname(dG_se), dG_R2 = unname(dG_R2),
          dF_late = unname(dF_late), dG_late = unname(dG_late),
+         dF_early = unname(dF_early),dG_early = unname(dG_early),
          F_0 = F_0, F_final = F_final,
          G_0 = G_0, G_final = G_final,
          nG  = nG,  Ne = Ne)
@@ -933,6 +1037,7 @@ compute_per_gen_rates <- function(dat,
   per_rep[, `:=`(
     eff_per_gen      = dG / dF,
     eff_per_gen_late = dG_late / dF_late,
+    eff_per_gen_early = dG_early/dF_early,
     eff_cumulative   = (G_final - G_0) / (F_final - F_0)
   )]
 
@@ -949,11 +1054,14 @@ compute_per_gen_rates <- function(dat,
     dG_R2_mean   = mean(dG_R2, na.rm = TRUE),
     dF_late_mean = mean(dF_late, na.rm = TRUE),
     dG_late_mean = mean(dG_late, na.rm = TRUE),
+    dF_early_mean = mean(dF_early, na.rm = TRUE),
+    dG_early_mean = mean(dG_early, na.rm = TRUE),
     Ne_mean      = mean(Ne, na.rm = TRUE),
     Ne_median    = median(Ne, na.rm = TRUE),
     eff_per_gen_mean      = mean(eff_per_gen, na.rm = TRUE),
     eff_per_gen_se        = sd(eff_per_gen, na.rm = TRUE)/sqrt(sum(!is.na(eff_per_gen))),
     eff_per_gen_late_mean = mean(eff_per_gen_late, na.rm = TRUE),
+    eff_per_gen_early_mean = mean(eff_per_gen_early, na.rm = TRUE),
     eff_cumulative_mean   = mean(eff_cumulative, na.rm = TRUE),
     eff_cumulative_se     = sd(eff_cumulative, na.rm = TRUE)/sqrt(sum(!is.na(eff_cumulative))),
     n_rep   = .N
@@ -1189,9 +1297,9 @@ plot_dt$app = factor(plot_dt$app,
                                      "GOCS45", "GOCS65", "GOCS90", "Random"))
 
 plot_dt$app = factor(plot_dt$app,
-                          levels = c("rl2_5m", "rl2_10m", "rl2_3","rl2_5","rl2","ocs25",
+                          levels = c("rl2_5m", "rl2_10m", "rl2_3","rl2_5","rl2","tc","ocs25",
                                      "ocs45", "ocs65", "ocs90", "ran"),
-                          labels = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "GOCS25",
+                          labels = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "TC","GOCS25",
                                      "GOCS45", "GOCS65", "GOCS90", "Random"))
 plot_dt$dF = plot_dt$dF*100   # 转换成百分比
 
@@ -1246,9 +1354,10 @@ ggsave("Figure 4.pdf", P ,
 
 
 
+
 y_var = "dG"
 y_lab = "Genetic gain per generation (ΔG)"
-plot_title = "Rate of genetic gain for LAGM with fixed look-ahead windows within 20-generation program"
+plot_title = "Rate of genetic gain for LAGM with fixed look-ahead windows within 20-generation horizon"
 out <- plot_per_rep_bar_with_cld(
     plot_dt,
     y_var      = y_var,
@@ -1257,13 +1366,24 @@ out <- plot_per_rep_bar_with_cld(
     #                OCS  = "#2ca02c",  OCS25= "#1F77B4",
     #                OCS45 = "#9467bd",  OCS65= "#f4a582",
     #                OCS90 = "#8b0000",  Random  = "#999999"),
-    app_order = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "GOCS25",
-                                     "GOCS45", "GOCS65", "GOCS90", "Random"),           
-    colors     = c(LAGM1   = "#1f3b73",  LAGM2   = "#d62728",
-                   LAGM3  = "#2ca02c",  GOCS25= "#1F77B4",
-                   GOCS45 = "#9467bd",  GOCS65= "#f4a582",
-                   GOCS90 = "#8b0000",  Random  = "#999999",
-                   LAGM5 = "#79465e", LAGM7 = "#930c83"),
+    app_order = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "TC","GOCS25",
+                                     "GOCS45", "GOCS65", "GOCS90","Random"),           
+    colors = c(
+        # --- LAGM 组：冷色阶渐变（窗口越长，颜色越深邃）---
+        "LAGM1"   = "#7bccc4",  # 浅青水绿 (Window = 1)
+        "LAGM2"   = "#43a2ca",  # 晴空蓝   (Window = 2)
+        "LAGM3"   = "#0868ac",  # 宝石蓝   (Window = 3)
+        "LAGM5"   = "#084081",  # 深海蓝   (Window = 5)
+        "LAGM7"   = "#49006a",  # 极深紫蓝 (Window = 7)
+        # --- 传统对照组 ---
+        "TC"      = "#e41a1c",  # 亮红 (GOCS 0°)
+        "GOCS25"  = "#ff7f00",  # 亮橙 (25°)
+        "GOCS45"  = "#984ea3",  # 紫色 (45°)
+        "GOCS65"  = "#f4a582",  # 珊瑚粉 (65°)
+        "GOCS90"  = "#800000",  # 暗红 (90°)
+        # --- 对照组 ---
+        "Random"  = "#8c8c8c"   # 灰色
+    ),
     tukey_alpha = 0.05,
     errorbar    = "se",
     y_lab       = y_lab,
@@ -1277,7 +1397,7 @@ P6
 
 y_var = "dF"
 y_lab = "Rate of inbreeding per generation (ΔF)"
-plot_title = "Rate of inbreeding for LAGM with fixed look-ahead windows within 20-generation program"
+plot_title = "Rate of inbreeding for LAGM with fixed look-ahead windows within 20-generation horizon"
 out <- plot_per_rep_bar_with_cld(
     plot_dt,
     y_var      = y_var,
@@ -1286,13 +1406,24 @@ out <- plot_per_rep_bar_with_cld(
     #                OCS  = "#2ca02c",  OCS25= "#1F77B4",
     #                OCS45 = "#9467bd",  OCS65= "#f4a582",
     #                OCS90 = "#8b0000",  Random  = "#999999"),
-    app_order = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "GOCS25",
-                                     "GOCS45", "GOCS65", "GOCS90", "Random"),           
-    colors     = c(LAGM1   = "#1f3b73",  LAGM2   = "#d62728",
-                   LAGM3  = "#2ca02c",  GOCS25= "#1F77B4",
-                   GOCS45 = "#9467bd",  GOCS65= "#f4a582",
-                   GOCS90 = "#8b0000",  Random  = "#999999",
-                   LAGM5 = "#79465e", LAGM7 = "#930c83"),
+    app_order = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "TC","GOCS25",
+                                     "GOCS45", "GOCS65", "GOCS90","Random"),           
+    colors = c(
+        # --- LAGM 组：冷色阶渐变（窗口越长，颜色越深邃）---
+        "LAGM1"   = "#7bccc4",  # 浅青水绿 (Window = 1)
+        "LAGM2"   = "#43a2ca",  # 晴空蓝   (Window = 2)
+        "LAGM3"   = "#0868ac",  # 宝石蓝   (Window = 3)
+        "LAGM5"   = "#084081",  # 深海蓝   (Window = 5)
+        "LAGM7"   = "#49006a",  # 极深紫蓝 (Window = 7)
+        # --- 传统对照组 ---
+        "TC"      = "#e41a1c",  # 亮红 (GOCS 0°)
+        "GOCS25"  = "#ff7f00",  # 亮橙 (25°)
+        "GOCS45"  = "#984ea3",  # 紫色 (45°)
+        "GOCS65"  = "#f4a582",  # 珊瑚粉 (65°)
+        "GOCS90"  = "#800000",  # 暗红 (90°)
+        # --- 对照组 ---
+        "Random"  = "#8c8c8c"   # 灰色
+    ),
     tukey_alpha = 0.05,
     errorbar    = "se",
     y_lab       = y_lab,
@@ -1301,12 +1432,12 @@ out <- plot_per_rep_bar_with_cld(
 P7 = out$plot + theme(strip.background = element_rect(fill = NA, color = NA)) +
 #   coord_cartesian(ylim = c(0, 100))   # 修改 y 轴范围（不会裁掉数据/误差棒）
 #   coord_cartesian(ylim = c(0, 1.2))   # 修改 y 轴范围（不会裁掉数据/误差棒）
-  coord_cartesian(ylim = c(0,5))   # 修改 y 轴范围（不会裁掉数据/误差棒）
+  coord_cartesian(ylim = c(0,8))   # 修改 y 轴范围（不会裁掉数据/误差棒）
 P7
 
 y_var = "eff_per_gen"
 y_lab = "Conversion efficiency"
-plot_title = "Conversion efficiency for LAGM with fixed look-ahead windows within 20-generation program"
+plot_title = "Conversion efficiency for LAGM with fixed look-ahead windows within 20-generation horizon"
 out <- plot_per_rep_bar_with_cld(
     plot_dt,
     y_var      = y_var,
@@ -1315,13 +1446,24 @@ out <- plot_per_rep_bar_with_cld(
     #                OCS  = "#2ca02c",  OCS25= "#1F77B4",
     #                OCS45 = "#9467bd",  OCS65= "#f4a582",
     #                OCS90 = "#8b0000",  Random  = "#999999"),
-    app_order = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "GOCS25",
-                                     "GOCS45", "GOCS65", "GOCS90", "Random"),           
-    colors     = c(LAGM1   = "#1f3b73",  LAGM2   = "#d62728",
-                   LAGM3  = "#2ca02c",  GOCS25= "#1F77B4",
-                   GOCS45 = "#9467bd",  GOCS65= "#f4a582",
-                   GOCS90 = "#8b0000",  Random  = "#999999",
-                   LAGM5 = "#79465e", LAGM7 = "#930c83"),
+    app_order = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "TC","GOCS25",
+                                     "GOCS45", "GOCS65", "GOCS90","Random"),           
+    colors = c(
+        # --- LAGM 组：冷色阶渐变（窗口越长，颜色越深邃）---
+        "LAGM1"   = "#7bccc4",  # 浅青水绿 (Window = 1)
+        "LAGM2"   = "#43a2ca",  # 晴空蓝   (Window = 2)
+        "LAGM3"   = "#0868ac",  # 宝石蓝   (Window = 3)
+        "LAGM5"   = "#084081",  # 深海蓝   (Window = 5)
+        "LAGM7"   = "#49006a",  # 极深紫蓝 (Window = 7)
+        # --- 传统对照组 ---
+        "TC"      = "#e41a1c",  # 亮红 (GOCS 0°)
+        "GOCS25"  = "#ff7f00",  # 亮橙 (25°)
+        "GOCS45"  = "#984ea3",  # 紫色 (45°)
+        "GOCS65"  = "#f4a582",  # 珊瑚粉 (65°)
+        "GOCS90"  = "#800000",  # 暗红 (90°)
+        # --- 对照组 ---
+        "Random"  = "#8c8c8c"   # 灰色
+    ),
     tukey_alpha = 0.05,
     errorbar    = "se",
     y_lab       = y_lab,
@@ -1332,7 +1474,6 @@ P8 = out$plot + theme(strip.background = element_rect(fill = NA, color = NA)) +
 #   coord_cartesian(ylim = c(0, 1.2))   # 修改 y 轴范围（不会裁掉数据/误差棒）
 #   coord_cartesian(ylim = c(0,10))   # 修改 y 轴范围（不会裁掉数据/误差棒）
 P8
-
 
 
 P6_new <- P6 + labs(title = "a) Rate of genetic gain (ΔG)", y = NULL, x=NULL,subtitle = NULL)
@@ -1358,13 +1499,14 @@ combined_plot <- P6_new + P7_new + P8_new +
     axis.title.y = element_blank(),
     # 【核心防御】如果“20-generation”是分面(facet)带来的，下面这两行可以强行让它消失
     strip.text = element_blank(),
-    strip.background = element_blank()
+    strip.background = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
   )
 
 # 4. 添加统一的全局大标题（同样使用正确的 plot.title）
 combined_plot <- combined_plot + 
   plot_annotation(
-    title = "LAGM with fixed look-ahead windows within 20-generation program", 
+    title = "LAGM with fixed look-ahead windows within 20-generation horizon", 
     theme = theme(
       # margin(b = 10) 可以给大标题下方留出空隙，防止和下面的子图挨得太近
       plot.title = element_text(hjust = 0.5, size = 16, face = "bold", margin = margin(b = 10))
