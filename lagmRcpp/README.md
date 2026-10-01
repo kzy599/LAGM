@@ -7,16 +7,22 @@ engine implemented in C++. It accepts generic inputs (IDs, EBVs, and either a
 genotype matrix or a user-supplied relationship matrix) and supports flexible
 per-parent contribution constraints.
 
-By default, `lagmRcpp` runs in **a single pass**: SA jointly selects parents,
-their contributions, and their pair assignment
+SA jointly selects parents, their contributions, and their pair assignment.
+The default diversity level remains `"pair"`, with its original objective:
 
 ```
-score = logG(P, s) + t · logD(P, M, t)
+J = log(Gnorm) + T * log(Dnorm)
 ```
 
-where `t = lookahead_generations`, and `G(P, s)` and `D(P, M, t)` denote, respectively, the min–max scaled expected genetic gain of offspring in the next generation (immediate genetic gain) and the min–max scaled conditional expected heterozygosity-retention ratio over `t` generations of selection. The min–max scaling uses the extreme mating plans that maximise each respective component, placing the two components on a comparable standardised scale during optimisation.
+Here `T = lookahead_generations`. `Gnorm` is normalized gain; `Dnorm` is
+normalized diversity retention **after raising retention to T**. The original
+gain-only and diversity-only searches supply the normalization anchors.
+In `"pop"` mode the combined search now adds a bounded pairing reward
+`S = J + pop_epsilon * Q` (default `pop_epsilon = 0.005`), described below.
 
-Because the objective inherently satisfies the equilibrium condition `ΔG(P, s) / G(P, s) = −t · ΔD(P, M, t) / D(P, M, t)`, optimisation can be interpreted as seeking a mating plan on the Pareto front: any marginal relative decrease in the available genetic-diversity space after `t` generations must be compensated by a proportional, `t`-fold marginal increase in immediate genetic gain. The objective therefore makes the intertemporal marginal rate of substitution between immediate selection response and terminal diversity preservation explicit.
+The original main objective J expresses a trade-off between relative changes
+in normalized gain and diversity. The bounded pop reward can compensate a
+small loss of J; it is not a strict zero-loss tie-breaker.
 
 
 > **Note:** The `rare_weight` argument is an internal testing parameter only. It is disabled by default and must not be enabled or modified by users. See [Internal / testing-only arguments](#internal--testing-only-arguments) for details.
@@ -130,15 +136,64 @@ Notes:
 
 - In `pair` mode the diversity quantity depends on the specific pair
   assignment, so SA produces a complete mating plan in a single pass.
-- In `pop` mode the diversity quantity depends only on the contribution
-  multiset, not on which female is matched to which male. SA therefore
-  chooses contributions only, and the per-mating pair allocation is filled
-  in by an optional Hungarian-based step (see *Pair allocation in pop mode*
-  below). Without that step, the resulting pairing is random.
+- In `pop` mode the population-diversity component of J depends only on the
+  contribution multiset. By default the bounded reward Q also distinguishes
+  pair assignments, so selection, contributions and pairing are searched
+  under the same combined objective S. The final searched pairs are retained;
+  Stage B is not run, even when `pop_epsilon = 0`.
 
-## Pair allocation in pop mode
+## Joint optimization in pop mode
 
-When `diversity_level = "pop"`, the `mate_allocation_pct` argument controls
+For the current plan, `q = mean(div_mat[pairs])`: predicted offspring Ho from
+the actual genomic pairings, or `1 - A[f,m]/2` in relationship mode.
+With fixed bounds `a = min(div_mat)` and `b = max(div_mat)` over the entire
+candidate cross matrix, `Q = (q-a)/(b-a)`, clamped to `[0,1]`; if `a=b`, Q is
+zero. These are valid scale boundaries, not promises that a feasible plan
+attains either endpoint. Q does not use population He/coancestry extrema,
+is not logged or raised to T, and needs no additional extreme-plan searches.
+
+“Joint” means selection and pairing share the combined search objective.
+It does **not** remove the original gain-only and diversity-only anchor
+searches, neither of which receives the new reward. Warm-up, acceptance,
+best-plan retention and restart comparison all use S in the combined stage.
+Genetic formulas, contribution/unique-pair constraints and the global
+annealing strategy are unchanged.
+
+`pop_epsilon` is a bounded reward weight, **not** strict main-objective
+zero-loss priority. An improvement ΔQ can compensate at most
+`pop_epsilon * ΔQ` loss of J; a J gap greater than epsilon cannot have its
+ranking reversed by Q. Writing `U = exp(J) = Gnorm * Dnorm^T`, epsilon
+0.005 and ΔQ=1 can compensate at most `1-exp(-0.005) ≈ 0.499%` loss of U.
+This is not a 0.5% change in gain, heterozygosity or inbreeding individually,
+nor a guarantee about SA's unknown global optimum. 0.005 is a conservative
+default, not a value rigorously derived from a fixed single-move scale.
+
+```r
+# Default joint pop search (all other required inputs as above)
+joint <- lagm_plan(
+  individual_ids = candidate_ids, female_ids = female_ids, male_ids = male_ids,
+  ebv_vector = ebv, geno_matrix = geno, n_crosses = 100,
+  lookahead_generations = 5, diversity_level = "pop",
+  pop_epsilon = 0.005
+)
+
+# Explicit legacy flow: original J-only search followed by Stage B
+two_stage <- lagm_plan(
+  individual_ids = candidate_ids, female_ids = female_ids, male_ids = male_ids,
+  ebv_vector = ebv, geno_matrix = geno, n_crosses = 100,
+  lookahead_generations = 5, diversity_level = "pop",
+  pop_two_stage = TRUE, mate_allocation_pct = 100
+)
+```
+
+Both arguments are also available on `lagm_mating()`. `pop_epsilon = 0`
+only removes the reward; restoring the old workflow requires
+`pop_two_stage = TRUE`. There is no automatic or silent fallback.
+
+## Explicit two-stage pair allocation in pop mode
+
+Only with `diversity_level = "pop", pop_two_stage = TRUE` does SA optimize J
+alone and then run Stage B, ignoring the epsilon reward. `mate_allocation_pct` controls
 how the `M` selected females are matched against the `M` selected males:
 
 | `mate_allocation_pct`        | Behaviour                                                                                     |
@@ -148,8 +203,9 @@ how the `M` selected females are matched against the `M` selected males:
 | `0`                          | Hungarian max — maximise mean within-pair kinship.                                            |
 | `N` in `(0, 100)`            | Swap-based interpolation toward `F_target = F_min + (1 − N/100)·(F_max − F_min)`.             |
 
-In `pair` mode this argument is ignored (with a warning), because pair
-identity is already part of the SA objective.
+In joint pop mode, an explicitly supplied non-NULL `mate_allocation_pct`
+(including `"rand"`) is ignored with a warning. In `pair` mode its existing
+behavior is unchanged: non-NULL values other than `"rand"` warn and are ignored.
 
 The kinship matrix `K` used here is resolved in the following order:
 
@@ -160,6 +216,9 @@ The kinship matrix `K` used here is resolved in the following order:
 3. Otherwise, in `relationship` mode, the user-supplied
    `relationship_matrix`.
 
+In joint mode `mate_kinship_matrix` still controls the original `stage_b_F`
+diagnostic; it never replaces `div_mat` in Q.
+
 ## Returned columns
 
 `lagm_plan()` returns a `data.table` with one row per mating:
@@ -169,7 +228,7 @@ The kinship matrix `K` used here is resolved in the following order:
 | `female_id`, `male_id` | The final mating plan.                                                                                                                                                                                                        |
 | `score`                | Per-pair SA score. Meaningful when `diversity_level = "pair"`; `NA` when `"pop"`.                                                                                                                                             |
 | `pair_gain`            | `(EBV_f + EBV_m) / 2`.                                                                                                                                                                                                        |
-| `pair_diversity`       | Per-pair diagnostic: per-pair Ho in genomic mode, `1 − A[f,m]/2` in relationship mode. Note this is *not* the SA's optimisation target in `pop` mode.                                                                         |
+| `pair_diversity`       | Per-pair Ho in genomic mode, `1 − A[f,m]/2` in relationship mode. Its mean is q for joint pop; it is not the population-diversity component of J. |
 | `stage_b_F`            | Mean kinship `mean(K[f, m])` over the final plan, computed under the same `K` used (or that would be used) by the pair-allocation step. Reported in all (mode, level) combinations as a directly comparable headline indicator. |
 
 ## Argument reference
@@ -188,8 +247,8 @@ lagm_plan(
   base_diversity = NULL,               # H0 for D = He / H0; defaults to candidate-pool baseline
   geno_matrix = NULL,                  # required when diversity_mode = "genomic"
   relationship_matrix = NULL,          # required when diversity_mode = "relationship"
-  mate_allocation_pct = NULL,          # only used when diversity_level = "pop"
-  mate_kinship_matrix = NULL,          # override kinship matrix used for pair allocation
+  mate_allocation_pct = NULL,          # only pop_two_stage = TRUE in pop mode
+  mate_kinship_matrix = NULL,          # Stage B / stage_b_F only, not joint Q
   # SA tuning ---------------------------------------------------------------
   n_iter             = 2000L,
   swap_prob          = 0.2,
@@ -201,9 +260,42 @@ lagm_plan(
   warmup_iter        = 100L,
   n_pop              = 50L,            # parallel SA restarts; best plan is kept
   n_threads          = 4L,
-  ...                                  # accepts the deprecated `diversity_metric`
+  rare_weight        = FALSE,          # internal/testing-only; leave unchanged
+  ...,                                # accepts the deprecated `diversity_metric`
+  pop_epsilon        = 0.005,          # finite non-negative scalar (pop only)
+  pop_two_stage      = FALSE           # non-NA logical scalar (pop only)
 )
 ```
+
+The new R arguments are named-only (after `...`), so existing positional
+arguments, including `lagm_mating()`'s `n_progeny` and `sim_param`, do not move.
+Rcpp arguments are appended and the exports regenerated; native `.Call`
+callers must use the updated arity/rebuild. In pair mode both new arguments
+are ignored without validation, with unchanged scoring/search/diagnostics.
+The returned columns are unchanged: pop's per-row `score` remains `NA`,
+never a copy of plan-level S. The low-level optimizer's `objective_sum`
+is S only for the joint pop combined stage; its per-row scores are unchanged.
+
+### Reproducible small-scale validation
+
+After installing the package, run:
+
+```sh
+Rscript /absolute/path/to/LAGM/lagmRcpp/validation/pop-joint.R
+```
+
+The script compiles the actual C++ source with test-only seeded adapters
+(production's clock-based seeding is unchanged). It compares epsilon 0,
+0.005 and 0.01 under shared original anchors for both pop metrics and
+multiple seeds, reporting J, q/Q and S. It enumerates legal pure swaps
+separately from contribution transfers, which replace **all** slots of a
+parent, not necessarily one. It reports ΔJ, epsilon·ΔQ and their magnitudes
+relative to the existing temperature schedule with explicit `warmup=0`.
+Neighborhood counts are unweighted legal proposals, not observed acceptance
+frequencies; no random single-run superiority is asserted or epsilon tuned.
+Set `LAGM_BASELINE_CPP` to an unmodified absolute `src/lagm_rcpp.cpp` path
+to additionally replay seeded pair, anchor and zero-reward trajectories
+against the old engine, including warm-up.
 
 ### Constraint conventions
 

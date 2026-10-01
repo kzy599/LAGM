@@ -170,7 +170,8 @@ lagm_plan <- function(individual_ids,
 
   is_pop <- identical(diversity_level, "pop")
   if (is_pop) {
-    if (!is.numeric(pop_epsilon) || length(pop_epsilon) != 1L ||
+    if (!is.numeric(pop_epsilon) || is.complex(pop_epsilon) ||
+        length(pop_epsilon) != 1L ||
         !is.finite(pop_epsilon) || pop_epsilon < 0) {
       stop("pop_epsilon must be a finite non-negative numeric scalar.")
     }

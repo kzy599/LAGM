@@ -15,6 +15,10 @@ pop_engine <- local({
   engine <- NULL
   function() {
     root <- normalizePath(testthat::test_path("..", ".."), mustWork = FALSE)
+    if (!file.exists(file.path(root, "src", "lagm_rcpp.cpp")) &&
+        dir.exists(file.path(root, "00_pkg_src", "lagm"))) {
+      root <- file.path(root, "00_pkg_src", "lagm")
+    }
     testthat::skip_if_not(file.exists(file.path(root, "src", "lagm_rcpp.cpp")),
                           "C++ engine probes require the source checkout")
     if (is.null(engine)) engine <<- load_pop_engine(root)

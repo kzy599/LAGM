@@ -52,7 +52,6 @@ test_that("pop_K plan diversity equals 1 - x' K x / (4 M^2) when SA picks a sing
     diversity_mode = "relationship",
     relationship_matrix = rel,
     diversity_level = "pop",
-    pop_two_stage = TRUE,
     n_iter = 50L, n_pop = 3L, n_threads = 1L
   )
 
@@ -138,6 +137,7 @@ test_that("relationship mode runs end-to-end with new pop_K and Stage B", {
     relationship_matrix = rel,
     diversity_level = "pop",
     mate_allocation_pct = 100,
+    pop_two_stage = TRUE,
     n_iter = 100L, n_pop = 3L, n_threads = 1L
   )
 

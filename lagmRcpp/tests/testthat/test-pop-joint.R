@@ -91,7 +91,7 @@ test_that("seeded searches keep pair and anchor paths unchanged", {
 
 test_that("pop parameters are validated only in pop paths", {
   invalid_epsilon <- list(NA_real_, NaN, Inf, -Inf, -0.1, NULL,
-                          numeric(), c(0, 1), "0.005", TRUE)
+                          numeric(), c(0, 1), "0.005", TRUE, 1 + 1i)
   invalid_two_stage <- list(NA, NULL, logical(), c(TRUE, FALSE), 0, "FALSE")
   for (mode in c("genomic", "relationship")) {
     args <- pop_api_args(mode)
@@ -206,6 +206,29 @@ test_that("two-stage C++ fallback ignores reward with unchanged row scores", {
     Q <- (fixture$div[1, 1] - min(fixture$div)) / diff(range(fixture$div))
     expect_equal(joint$objective_sum, zero$objective_sum + 0.005 * Q)
     expect_identical(joint$score, old$score)
+  }
+})
+
+test_that("parallel restart results report the same joint objective as their pairs", {
+  for (metric in 1:2) {
+    fixture <- pop_fixture(metric)
+    for (epsilon in c(0, 0.005, 0.01)) {
+      args <- list(gain_mat = fixture$gain, div_mat = fixture$div,
+                   female_min = rep(0L, 3), female_max = rep(2L, 3),
+                   male_min = rep(0L, 3), male_max = rep(2L, 3), n_crosses = 4L,
+                   Gmin = 0, Gmax = 2, Dmin = -2, Dmax = 1,
+                   diversity_metric = metric, pop_epsilon = epsilon,
+                   female_geno = fixture$fg, male_geno = fixture$mg,
+                   relationship_full = fixture$K, n_iter = 100L,
+                   warmup_iter = 40L, n_pop = 4L, n_threads = 2L)
+      result <- do.call(lagm::optimize_mating_plan_cpp, args)
+      q <- mean(fixture$div[cbind(result$female_index, result$male_index)])
+      Q <- (q - min(fixture$div)) / diff(range(fixture$div))
+      J <- log(max(result$avg_gain / (2 + 1e-12), 1e-12)) +
+        log(max((result$avg_diversity + 2) / (3 + 1e-12), 1e-12))
+      expect_equal(result$objective_sum, J + epsilon * Q)
+      expect_equal(mean(result$pair_diversity), q)
+    }
   }
 })
 
