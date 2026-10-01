@@ -311,10 +311,8 @@ test_that("pop_He incremental sum_p update matches from-scratch recompute", {
   # Recompute pop_He from scratch on the returned plan (R-side, 1-based indices).
   fi <- res$female_index
   mi <- res$male_index
-  n  <- length(fi)
-  sum_p <- colSums(female_geno_test[fi, , drop = FALSE]) +
-           colSums(male_geno_test[mi, , drop = FALSE])
-  p_bar <- sum_p / (2 * n)
+  p_bar <- colMeans(rbind(female_geno_test[fi, , drop = FALSE] / 2,
+                          male_geno_test[mi, , drop = FALSE] / 2))
   he_recomputed <- mean(2 * p_bar * (1 - p_bar))
 
   expect_equal(res$avg_diversity, he_recomputed, tolerance = 1e-10)

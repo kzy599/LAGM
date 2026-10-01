@@ -231,8 +231,8 @@ double evaluate_pair_cpp(const double gain,
 }
 
 // Compute population-level expected heterozygosity (He) from a mating plan.
-// For each selected pair k, the offspring allele frequency at locus l is
-// p_off_{k,l} = (p_{f_k,l} + p_{m_k,l}) / 2.  The population-mean frequency
+// Genotypes are raw diploid dosages (0/1/2). For each selected pair k,
+// p_off_{k,l} = (geno_{f_k,l} + geno_{m_k,l}) / 4. The population-mean frequency
 // is p_bar_l = mean_k(p_off_{k,l}), and He = mean_l(2 * p_bar_l * (1 - p_bar_l)).
 // This captures the between-family variance component (Wahlund: H_T = H_S + 2*Var(p)).
 double compute_population_He_from_plan(const arma::uvec& female_plan,
@@ -246,16 +246,16 @@ double compute_population_He_from_plan(const arma::uvec& female_plan,
   for (unsigned int k = 0; k < n; ++k) {
     sum_p += (female_geno.row(female_plan[k]) + male_geno.row(male_plan[k]));
   }
-  // p_bar_l = (sum of (geno_f + geno_m) / 2) / n  =  sum / (2 * n)
-  arma::rowvec p_bar = sum_p / (2.0 * static_cast<double>(n));
+  // Each pair contributes four allele copies; repeated parents count per slot.
+  arma::rowvec p_bar = sum_p / (4.0 * static_cast<double>(n));
 
   return arma::mean(2.0 * p_bar % (1.0 - p_bar));
 }
 
 // Fast He computation given a pre-computed sum_p over a mating plan of size n.
-// p_bar = sum_p / (2 * n); He = mean_l(2 * p_bar * (1 - p_bar)).
+// sum_p contains raw dosages: p_bar = sum_p / (4 * n).
 inline double he_from_sum_p(const arma::rowvec& sum_p, unsigned int n) {
-  arma::rowvec p_bar = sum_p / (2.0 * static_cast<double>(n));
+  arma::rowvec p_bar = sum_p / (4.0 * static_cast<double>(n));
   return arma::mean(2.0 * p_bar % (1.0 - p_bar));
 }
 
@@ -289,7 +289,10 @@ double evaluate_plan_cpp(const arma::uvec& female_plan,
                          const arma::mat* K_full_ptr = nullptr,
                          const arma::vec* x_ptr = nullptr,
                          double* avg_gain_out = nullptr,
-                         double* avg_div_out = nullptr) {
+                         double* avg_div_out = nullptr,
+                         double pop_epsilon = 0.0,
+                         double pair_div_min = 0.0,
+                         double pair_div_max = 0.0) {
   double sum_gain = 0.0;
   double sum_div = 0.0;
   const unsigned int n = female_plan.n_elem;
@@ -325,7 +328,7 @@ double evaluate_plan_cpp(const arma::uvec& female_plan,
     *avg_div_out = avg_div;
   }
 
-  return evaluate_pair_cpp(
+  const double J = evaluate_pair_cpp(
     avg_gain,
     avg_div,
     opt_mode,
@@ -336,6 +339,16 @@ double evaluate_plan_cpp(const arma::uvec& female_plan,
     base_div,
     lookahead_t
   );
+  // Only the combined joint-pop search receives the bounded pairing reward.
+  // The matrix bounds are fixed across all proposals and restarts.
+  if ((diversity_metric == 1 || diversity_metric == 2) &&
+      opt_mode == 3 && pop_epsilon > 0.0 && pair_div_max > pair_div_min) {
+    const double q = sum_div / static_cast<double>(n);
+    const double Q = std::max(0.0, std::min(1.0,
+      (q - pair_div_min) / (pair_div_max - pair_div_min)));
+    return J + pop_epsilon * Q;
+  }
+  return J;
 }
 
 template <typename RNG>
@@ -365,7 +378,10 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
                            const arma::mat* female_geno_ptr,
                            const arma::mat* male_geno_ptr,
                            const arma::mat* K_full_ptr,
-                           RNG& rng) {
+                           RNG& rng,
+                           const double pop_epsilon = 0.0,
+                           const double pair_div_min = 0.0,
+                           const double pair_div_max = 0.0) {
   const int n_f = gain_mat.n_rows;
   const int n_m = gain_mat.n_cols;
 
@@ -600,7 +616,10 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
     K_full_ptr,
     (diversity_metric == 2 ? &current_x : nullptr),
     &current_avg_gain,
-    &current_avg_div
+    &current_avg_div,
+    pop_epsilon,
+    pair_div_min,
+    pair_div_max
   );
 
   double best_score = current_score;
@@ -670,7 +689,12 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
       male_geno_ptr,
       (diversity_metric == 1 ? &trial_sum_p : nullptr),
       K_full_ptr,
-      (diversity_metric == 2 ? &trial_x : nullptr)
+      (diversity_metric == 2 ? &trial_x : nullptr),
+      nullptr,
+      nullptr,
+      pop_epsilon,
+      pair_div_min,
+      pair_div_max
     );
 
     double delta = trial_score - current_score;
@@ -683,7 +707,8 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
   double current_temp = 0.01;
   if (count_worse > 0 && init_prob > 0.0 && init_prob < 1.0) {
     double avg_worse_delta = sum_worse_delta / static_cast<double>(count_worse);
-    current_temp = -avg_worse_delta / std::log(init_prob);
+    // exp(avg_worse_delta / temp) = init_prob; both numerator and log are negative.
+    current_temp = avg_worse_delta / std::log(init_prob);
     if (!std::isfinite(current_temp) || current_temp <= 0.0) {
       current_temp = 0.01;
     }
@@ -750,7 +775,10 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
         K_full_ptr,
         (diversity_metric == 2 ? &trial_x : nullptr),
         &trial_avg_gain,
-        &trial_avg_div
+        &trial_avg_div,
+        pop_epsilon,
+        pair_div_min,
+        pair_div_max
       );
 
       double delta = trial_score - current_score;
@@ -952,7 +980,9 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
                               const int diversity_metric = 1,
                               Rcpp::Nullable<Rcpp::NumericMatrix> female_geno = R_NilValue,
                               Rcpp::Nullable<Rcpp::NumericMatrix> male_geno = R_NilValue,
-                              Rcpp::Nullable<Rcpp::NumericMatrix> relationship_full = R_NilValue) {
+                              Rcpp::Nullable<Rcpp::NumericMatrix> relationship_full = R_NilValue,
+                              Rcpp::RObject pop_epsilon = NumericVector::create(0.005),
+                              Rcpp::RObject pop_two_stage = LogicalVector::create(FALSE)) {
   const int n_f = gain_mat.n_rows;
   const int n_m = gain_mat.n_cols;
 
@@ -989,6 +1019,32 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
   }
   if (mutate_female_prob < 0.0 || mutate_female_prob > 1.0) {
     stop("mutate_female_prob must be in [0,1].");
+  }
+
+  double reward_weight = 0.0;
+  double pair_div_min = 0.0;
+  double pair_div_max = 0.0;
+  if (diversity_metric == 1 || diversity_metric == 2) {
+    if ((TYPEOF(pop_epsilon) != REALSXP && TYPEOF(pop_epsilon) != INTSXP) ||
+        Rf_xlength(pop_epsilon) != 1) {
+      stop("pop_epsilon must be a finite non-negative numeric scalar.");
+    }
+    const double epsilon = as<double>(pop_epsilon);
+    if (!std::isfinite(epsilon) || epsilon < 0.0) {
+      stop("pop_epsilon must be a finite non-negative numeric scalar.");
+    }
+    if (TYPEOF(pop_two_stage) != LGLSXP || Rf_xlength(pop_two_stage) != 1 ||
+        LOGICAL(pop_two_stage)[0] == NA_LOGICAL) {
+      stop("pop_two_stage must be a non-NA logical scalar.");
+    }
+    if (!as<bool>(pop_two_stage) && opt_mode == 3) {
+      reward_weight = epsilon;
+      if (div_mat.n_elem == 0 || !div_mat.is_finite()) {
+        stop("Joint pop mode requires a non-empty finite div_mat.");
+      }
+      pair_div_min = div_mat.min();
+      pair_div_max = div_mat.max();
+    }
   }
 
   // Resolve optional genotype matrices for pop_He mode
@@ -1085,7 +1141,10 @@ List optimize_mating_plan_cpp(const arma::mat& gain_mat,
       female_geno_ptr,
       male_geno_ptr,
       K_full_ptr,
-      rng
+      rng,
+      reward_weight,
+      pair_div_min,
+      pair_div_max
     );
 
     female_plans[p] = run.female_plan;

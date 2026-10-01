@@ -20,8 +20,9 @@
 #                          mirrors the (1 - 1/(2 N_e))^t decay model.
 #                        - "pop":  population-level quantity invariant to
 #                          pair assignment within a fixed contribution
-#                          multiset. SA only chooses contributions; pair
-#                          allocation is delegated to Stage B (Hungarian).
+#                          multiset. By default SA jointly chooses selection,
+#                          contributions and pairs using J + pop_epsilon * Q.
+#                          pop_two_stage = TRUE restores J-only then Stage B.
 #
 # The four (mode, level) combinations correspond to:
 #   (genomic, pair)      -> per-pair Ho
@@ -30,8 +31,8 @@
 #   (relationship, pop)  -> group coancestry (1 - x'Kx/(4M^2))
 #
 # Stage B (mate_allocation_pct):
-#   Only applies when diversity_level == "pop" (otherwise ignored with
-#   a warning). Controls how the M selected females are paired with the
+#   Only applies when diversity_level == "pop" and pop_two_stage = TRUE.
+#   Controls how the M selected females are paired with the
 #   M selected males via the Hungarian algorithm:
 #     NULL or "rand" -> random pairing (legacy GOCS-style)
 #     100            -> minimise mean within-pair kinship
@@ -52,8 +53,8 @@
 #   - `pair_gain`: diagnostic per-pair (EBV_f + EBV_m) / 2.
 #   - `pair_diversity`: diagnostic per-pair quantity from the original
 #     div_mat (per-pair Ho in genomic mode, 1 - A[f,m]/2 in relationship
-#     mode).  In pop-level mode this is *not* the SA's optimisation
-#     target.
+#     mode). Its mean supplies the bounded reward in joint pop mode,
+#     not the population-diversity component of J.
 #   - `stage_b_F`: mean kinship `mean(K[f, m])` over the final plan,
 #     computed under the same K used (or that would be used) by Stage B.
 #     Reported in all four (mode, level) combinations as a diagnostic so
@@ -79,6 +80,17 @@
 #   Weights are normalised internally so the per-pair diversity
 #   remains in [0, 1].  Ignored with a warning for any other
 #   (diversity_mode, diversity_level) combination.
+#
+# pop_epsilon: finite non-negative scalar, default 0.005. In joint pop mode,
+#   only the combined search adds pop_epsilon * Q to the original J, where
+#   Q = (mean(div_mat[pairs]) - min(div_mat)) / diff(range(div_mat)), clamped
+#   to [0,1], or zero for a constant matrix. The gain/diversity anchor searches
+#   are unchanged. This is a bounded reward, not strict zero-loss priority.
+# pop_two_stage: non-NA scalar logical, default FALSE. TRUE restores the
+#   original J-only search followed by Stage B, ignoring the epsilon reward.
+#   FALSE retains the searched pairing, even at epsilon = 0, and warns for
+#   non-NULL mate_allocation_pct. mate_kinship_matrix still supplies stage_b_F,
+#   never the joint reward. Both new arguments are ignored in pair mode.
 #
 # This function returns an optimized mating plan only (no simulation coupling).
 lagm_plan <- function(individual_ids,
@@ -109,7 +121,9 @@ lagm_plan <- function(individual_ids,
                       n_pop = 50L,
                       n_threads = 4L,
                       rare_weight = FALSE,
-                      ...) {
+                      ...,
+                      pop_epsilon = 0.005,
+                      pop_two_stage = FALSE) {
   diversity_mode  <- match.arg(diversity_mode)
   diversity_level <- match.arg(diversity_level)
 
@@ -154,11 +168,28 @@ lagm_plan <- function(individual_ids,
     "relationship_pop"  = 2L     # group coancestry
   )
 
-  # Stage B is only meaningful for pop-level diversity targets.  In
-  # pair-level mode the SA already encodes pair-level signal directly,
-  # so any user-supplied `mate_allocation_pct` is ignored with a warning.
-  stage_b_active <- identical(diversity_level, "pop")
-  if (!stage_b_active &&
+  is_pop <- identical(diversity_level, "pop")
+  if (is_pop) {
+    if (!is.numeric(pop_epsilon) || is.complex(pop_epsilon) ||
+        length(pop_epsilon) != 1L ||
+        !is.finite(pop_epsilon) || pop_epsilon < 0) {
+      stop("pop_epsilon must be a finite non-negative numeric scalar.")
+    }
+    if (!is.logical(pop_two_stage) || length(pop_two_stage) != 1L ||
+        is.na(pop_two_stage)) {
+      stop("pop_two_stage must be a non-NA logical scalar.")
+    }
+    if (!pop_two_stage && !is.null(mate_allocation_pct)) {
+      warning("mate_allocation_pct is ignored in joint pop mode; ",
+              "set pop_two_stage = TRUE to enable Stage B.")
+    }
+  } else {
+    # Do not validate or force the pop-only arguments on the pair path.
+    pop_epsilon <- 0.005
+    pop_two_stage <- FALSE
+  }
+  stage_b_active <- is_pop && pop_two_stage
+  if (!is_pop &&
       !is.null(mate_allocation_pct) &&
       !identical(mate_allocation_pct, "rand")) {
     warning("Pair-level metrics already encode pair signal; mate_allocation_pct ignored.")
@@ -358,7 +389,9 @@ lagm_plan <- function(individual_ids,
       diversity_metric = diversity_metric_int,
       female_geno = female_geno_arg,
       male_geno = male_geno_arg,
-      relationship_full = relationship_full_arg
+      relationship_full = relationship_full_arg,
+      pop_epsilon = pop_epsilon,
+      pop_two_stage = pop_two_stage
     )
   }
 
@@ -436,13 +469,11 @@ lagm_plan <- function(individual_ids,
   }
 
   if (!stage_b_active) {
-    # Pair-level mode: SA already produced a specific (female, male)
-    # plan; keep it as-is.
+    # Pair mode and joint pop mode retain the specific searched pairing.
     final_female_id <- female_ids_in_plan
     final_male_id   <- male_ids_in_plan
   } else {
-    # Pop-level mode: SA only fixed the contribution multiset; reallocate
-    # pairs via Stage B.
+    # Explicit legacy pop fallback: reallocate the contribution multiset.
     stage_b_plan <- stage_b_allocate(
       female_ids_in_plan = female_ids_in_plan,
       male_ids_in_plan   = male_ids_in_plan,
@@ -528,7 +559,9 @@ lagm_mating <- function(candidate,
                         rare_weight = FALSE,
                         n_progeny = 1L,
                         sim_param = NULL,
-                        ...) {
+                        ...,
+                        pop_epsilon = 0.005,
+                        pop_two_stage = FALSE) {
   if (!requireNamespace("AlphaSimR", quietly = TRUE)) {
     stop("lagm_mating() requires AlphaSimR. Use lagm_plan() for generic optimization.")
   }
@@ -570,6 +603,8 @@ lagm_mating <- function(candidate,
     n_pop = n_pop,
     n_threads = n_threads,
     rare_weight = rare_weight,
+    pop_epsilon = pop_epsilon,
+    pop_two_stage = pop_two_stage,
     ...
   )
 

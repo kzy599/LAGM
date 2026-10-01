@@ -30,6 +30,15 @@ To reproduce the results reported in the study:
    remotes::install_github("kzy599/LAGM", subdir = "lagmRcpp")
    ```
 
+   The default diversity level remains `"pair"` with unchanged behavior.
+   For `diversity_level = "pop"`, the default is now joint selection,
+   contribution and pairing optimization (`pop_epsilon = 0.005`), retaining
+   the original gain/diversity normalization searches. Set
+   `pop_two_stage = TRUE` to restore the legacy J-only search followed by
+   Stage B (`mate_allocation_pct`); epsilon zero alone does not restore it.
+   See the [package documentation](lagmRcpp/README.md#joint-optimization-in-pop-mode)
+   for examples, the bounded reward interpretation and reproducible validation.
+
 4. **Dependencies**
 
    Before running any script, ensure that all required R libraries are available — they are loaded centrally via `utils.r` — and that **HiBLUP** (used for EBV calculation) is installed and configured correctly.
