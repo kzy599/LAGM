@@ -52,6 +52,7 @@ test_that("pop_K plan diversity equals 1 - x' K x / (4 M^2) when SA picks a sing
     diversity_mode = "relationship",
     relationship_matrix = rel,
     diversity_level = "pop",
+    pop_two_stage = TRUE,
     n_iter = 50L, n_pop = 3L, n_threads = 1L
   )
 

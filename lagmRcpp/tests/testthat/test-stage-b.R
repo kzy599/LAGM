@@ -156,6 +156,7 @@ test_that("Stage B in pop_He mode preserves contribution multiset and minimises 
     diversity_mode = "genomic",
     geno_matrix    = geno,
     diversity_level = "pop",
+    pop_two_stage = TRUE,
     n_iter = 100L, n_pop = 3L, n_threads = 1L
   )
 
