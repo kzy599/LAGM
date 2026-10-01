@@ -3,6 +3,11 @@ test_that("both pop metrics add bounded q/Q rewards to the unchanged J", {
   for (metric in 1:2) {
     args <- c(pop_fixture(metric), list(fp = c(0L, 1L), mp = c(0L, 1L)))
     ans <- do.call(engine$inspect_plan, args)
+    if (metric == 1L) {
+      p <- colMeans(rbind(args$fg[args$fp + 1L, , drop = FALSE] / 2,
+                         args$mg[args$mp + 1L, , drop = FALSE] / 2))
+      expect_equal(ans$diversity, mean(2 * p * (1 - p)))
+    }
     q <- mean(args$div[cbind(args$fp + 1L, args$mp + 1L)])
     Q <- (q - min(args$div)) / diff(range(args$div))
     Gnorm <- max(ans$gain / (2 + 1e-12), 1e-12)

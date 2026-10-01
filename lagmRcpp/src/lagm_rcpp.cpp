@@ -231,8 +231,8 @@ double evaluate_pair_cpp(const double gain,
 }
 
 // Compute population-level expected heterozygosity (He) from a mating plan.
-// For each selected pair k, the offspring allele frequency at locus l is
-// p_off_{k,l} = (p_{f_k,l} + p_{m_k,l}) / 2.  The population-mean frequency
+// Genotypes are raw diploid dosages (0/1/2). For each selected pair k,
+// p_off_{k,l} = (geno_{f_k,l} + geno_{m_k,l}) / 4. The population-mean frequency
 // is p_bar_l = mean_k(p_off_{k,l}), and He = mean_l(2 * p_bar_l * (1 - p_bar_l)).
 // This captures the between-family variance component (Wahlund: H_T = H_S + 2*Var(p)).
 double compute_population_He_from_plan(const arma::uvec& female_plan,
@@ -246,16 +246,16 @@ double compute_population_He_from_plan(const arma::uvec& female_plan,
   for (unsigned int k = 0; k < n; ++k) {
     sum_p += (female_geno.row(female_plan[k]) + male_geno.row(male_plan[k]));
   }
-  // p_bar_l = (sum of (geno_f + geno_m) / 2) / n  =  sum / (2 * n)
-  arma::rowvec p_bar = sum_p / (2.0 * static_cast<double>(n));
+  // Each pair contributes four allele copies; repeated parents count per slot.
+  arma::rowvec p_bar = sum_p / (4.0 * static_cast<double>(n));
 
   return arma::mean(2.0 * p_bar % (1.0 - p_bar));
 }
 
 // Fast He computation given a pre-computed sum_p over a mating plan of size n.
-// p_bar = sum_p / (2 * n); He = mean_l(2 * p_bar * (1 - p_bar)).
+// sum_p contains raw dosages: p_bar = sum_p / (4 * n).
 inline double he_from_sum_p(const arma::rowvec& sum_p, unsigned int n) {
-  arma::rowvec p_bar = sum_p / (2.0 * static_cast<double>(n));
+  arma::rowvec p_bar = sum_p / (4.0 * static_cast<double>(n));
   return arma::mean(2.0 * p_bar % (1.0 - p_bar));
 }
 
@@ -707,7 +707,8 @@ SAResult sa_single_run_cpp(const arma::mat& gain_mat,
   double current_temp = 0.01;
   if (count_worse > 0 && init_prob > 0.0 && init_prob < 1.0) {
     double avg_worse_delta = sum_worse_delta / static_cast<double>(count_worse);
-    current_temp = -avg_worse_delta / std::log(init_prob);
+    // exp(avg_worse_delta / temp) = init_prob; both numerator and log are negative.
+    current_temp = avg_worse_delta / std::log(init_prob);
     if (!std::isfinite(current_temp) || current_temp <= 0.0) {
       current_temp = 0.01;
     }

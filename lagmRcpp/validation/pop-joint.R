@@ -44,8 +44,8 @@ for (metric in 1:2) {
   fixture <- pop_fixture(metric)
   if (metric == 1L) {
     # A small dosage fixture with a gain/pop-diversity trade-off.
-    fixture$fg <- rbind(rep(1, 12), rep(c(0, 1), 6), rep(0, 12))
-    fixture$mg <- rbind(rep(1, 12), rep(c(1, 0, 0, 1), 3), rep(0, 12))
+    fixture$fg <- rbind(rep(2, 12), rep(c(0, 2), 6), rep(0, 12))
+    fixture$mg <- rbind(rep(2, 12), rep(c(2, 0, 0, 2), 3), rep(0, 12))
     fixture$div <- lagm::compute_expected_heterozygosity_cpp(fixture$fg, fixture$mg)
   }
   mode_name <- c("genomic", "relationship")[metric]
@@ -113,16 +113,17 @@ for (iteration in c(0L, 100L, 199L)) {
 stopifnot(any(move_data$kind == "contribution_transfer" & move_data$slots > 1))
 
 # Optional exact replay against an unmodified checkout's C++ source.
-# This verifies real warm-up/search trajectories, not random one-run rankings.
+# Replay only unaffected metrics with warmup disabled: corrected population He
+# and calibrated temperatures must not reproduce the historical bugs.
 baseline_source <- Sys.getenv("LAGM_BASELINE_CPP")
 if (nzchar(baseline_source)) {
   baseline <- load_pop_engine(root, normalizePath(baseline_source))
   comparisons <- 0L
-  for (metric in 0:3) {
+  for (metric in c(0L, 2L, 3L)) {
     for (mode in 1:3) {
       for (seed in c(17L, 42L, 2026L)) {
-        args <- c(pop_fixture(metric), list(mode = mode, seed = seed))
-        old <- do.call(baseline$seeded_search, args)
+        args <- c(pop_fixture(metric), list(mode = mode, seed = seed, warmup = 0L))
+        old <- do.call(baseline$seeded_search, c(args, list(epsilon = 0)))
         new <- do.call(engine$seeded_search, c(args, list(epsilon = 0)))
         stopifnot(identical(old, new))
         if (metric %in% c(0L, 3L) || mode != 3L) {
@@ -133,7 +134,8 @@ if (nzchar(baseline_source)) {
       }
     }
   }
-  cat("\nExact baseline trajectory comparisons passed:", comparisons, "\n")
+  cat("\nExact baseline comparisons (non-He metrics, warmup=0) passed:",
+      comparisons, "\n")
   baseline_r <- file.path(dirname(dirname(baseline_source)), "R", "mating.R")
   if (file.exists(baseline_r)) {
     # Hold Stage A output fixed to compare actual old/new R routing,
@@ -159,7 +161,10 @@ if (nzchar(baseline_source)) {
           args$diversity_level <- level
           args$mate_allocation_pct <- pct
           set.seed(42)
-          old <- suppressWarnings(do.call(old_r$lagm_plan, args))
+          old <- suppressWarnings(do.call(old_r$lagm_plan, c(args,
+            if ("pop_two_stage" %in% names(formals(old_r$lagm_plan))) {
+              list(pop_two_stage = TRUE)
+            })))
           set.seed(42)
           new <- suppressWarnings(do.call(new_r$lagm_plan,
             c(args, list(pop_two_stage = TRUE, pop_epsilon = 100))))
@@ -170,4 +175,4 @@ if (nzchar(baseline_source)) {
     cat("Exact old/new R pair and two-stage routing comparisons passed: 20\n")
   }
 }
-cat("\nNo automatic epsilon adjustment; no pair/legacy production path changes.\n")
+cat("\nNo automatic epsilon adjustment; He and warm-up corrections are tested independently.\n")

@@ -142,6 +142,26 @@ Notes:
   under the same combined objective S. The final searched pairs are retained;
   Stage B is not run, even when `pop_epsilon = 0`.
 
+For genomic pop diversity, inputs remain raw diploid dosages `g ∈ {0,1,2}`.
+With M matings, `p̄_l = sum_k(g_f[k,l] + g_m[k,l]) / (4 M)`; repeated
+parents contribute once per occupied slot. Thus Aa×Aa and AA×aa both have
+population He=0.5, while AA×AA and aa×aa have He=0. Their per-pair Ho values
+are different and its formula is unchanged. No clipping is applied to He.
+
+The historical population-He implementation incorrectly divided raw dosage
+totals by `2 M`. Both full and incremental paths now use `4 M`. The candidate
+baseline already uses `colMeans(geno_matrix)/2` and needs no rescaling.
+The corrected He propagates to the gain/diversity cross-anchors and J (and
+hence S); it is not a constant rescaling of the old He. Recompute previous
+pop-genomic results, including explicit two-stage runs.
+
+SA warm-up now uses `temperature = mean(worse_deltas)/log(init_prob)` for
+negative `trial_score-current_score` deltas and `0 < init_prob < 1`.
+The historical extra minus sign forced a fallback to 0.01. That fallback
+remains for no worse proposals or an invalid/non-finite calibration.
+This correction applies to all modes, so seeded trajectories can change even
+though pair Ho and relationship diversity formulas are unchanged.
+
 ## Joint optimization in pop mode
 
 For the current plan, `q = mean(div_mat[pairs])`: predicted offspring Ho from
@@ -156,8 +176,9 @@ is not logged or raised to T, and needs no additional extreme-plan searches.
 It does **not** remove the original gain-only and diversity-only anchor
 searches, neither of which receives the new reward. Warm-up, acceptance,
 best-plan retention and restart comparison all use S in the combined stage.
-Genetic formulas, contribution/unique-pair constraints and the global
-annealing strategy are unchanged.
+The reward itself does not change genetic formulas, contribution/unique-pair
+constraints or the annealing strategy; the historical corrections above apply
+to both joint and legacy searches.
 
 `pop_epsilon` is a bounded reward weight, **not** strict main-objective
 zero-loss priority. An improvement ΔQ can compensate at most
@@ -273,7 +294,7 @@ Rcpp arguments are appended and the exports regenerated; native `.Call`
 callers must use the updated arity/rebuild. Previously tracked compiled objects
 are removed so normal source installs rebuild the matching native interface.
 In pair mode both new arguments
-are ignored without validation, with unchanged scoring/search/diagnostics.
+are ignored without validation and do not affect scoring/search/diagnostics.
 The returned columns are unchanged: pop's per-row `score` remains `NA`,
 never a copy of plan-level S. The low-level optimizer's `objective_sum`
 is S only for the joint pop combined stage; its per-row scores are unchanged.
@@ -296,8 +317,12 @@ relative to the existing temperature schedule with explicit `warmup=0`.
 Neighborhood counts are unweighted legal proposals, not observed acceptance
 frequencies; no random single-run superiority is asserted or epsilon tuned.
 Set `LAGM_BASELINE_CPP` to an unmodified absolute `src/lagm_rcpp.cpp` path
-to additionally replay seeded pair, anchor and zero-reward trajectories
-against the old engine, including warm-up.
+to additionally replay seeded pair/relationship trajectories with zero reward
+and `warmup=0` against the old engine. Population He and warm-up are excluded
+from historical equality checks because their old results were incorrect.
+The testthat suite instead checks hand-calculated He, real SA incremental
+states against independent R recomputation, and temperature calibration
+against the target acceptance probability.
 
 ### Constraint conventions
 
