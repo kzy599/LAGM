@@ -270,7 +270,9 @@ lagm_plan(
 The new R arguments are named-only (after `...`), so existing positional
 arguments, including `lagm_mating()`'s `n_progeny` and `sim_param`, do not move.
 Rcpp arguments are appended and the exports regenerated; native `.Call`
-callers must use the updated arity/rebuild. In pair mode both new arguments
+callers must use the updated arity/rebuild. Previously tracked compiled objects
+are removed so normal source installs rebuild the matching native interface.
+In pair mode both new arguments
 are ignored without validation, with unchanged scoring/search/diagnostics.
 The returned columns are unchanged: pop's per-row `score` remains `NA`,
 never a copy of plan-level S. The low-level optimizer's `objective_sum`
