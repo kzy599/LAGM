@@ -412,8 +412,15 @@ res_t <- plot_robust_predicted_boxplot(
     )
 )
 print(res_t$plot)
-ggsave("Figure 5.pdf", res_t$plot , width = 15, height = 10, dpi = 300,device = cairo_pdf)
-ggsave("Figure 7.pdf", res_t$plot , width = 15.1, height = 8, dpi = 300,device = cairo_pdf)
+#ggsave("Figure 5.pdf", res_t$plot , width = 15, height = 10, dpi = 300,device = cairo_pdf)
+#Figure 5 ==> Figure S11
+ggsave("Figure S11.pdf", res_t$plot , width = 15, height = 10, dpi = 300,device = cairo_pdf)
+
+#ggsave("Figure 7.pdf", res_t$plot , width = 15, height = 8, dpi = 300,device = cairo_pdf)
+#Figure 7 ==> Figure S12
+ggsave("Figure S12.pdf", res_t$plot , width = 15, height = 10, dpi = 300,device = cairo_pdf)
+
+
 
 print(res_t$r2_summary)
 print(res_t$labels[, .(programs, x_target_factor, app, y_mean, signif_label)])
@@ -770,7 +777,9 @@ combined_plot <- (p1 | p2) +
 
 # 查看最终图片
 combined_plot
-ggsave("Figure 8.pdf", combined_plot , width = 15, height = 8, dpi = 300,device = cairo_pdf)
+#ggsave("Figure 8.pdf", combined_plot , width = 15, height = 8, dpi = 300,device = cairo_pdf)
+#Figure 8 ==> Figure S13
+ggsave("Figure S13.pdf", combined_plot , width = 15, height = 8, dpi = 300,device = cairo_pdf)
 
 # ============================================================
 # 第一阶段：每个 rep 用 rlm 拟合斜率
@@ -1284,7 +1293,7 @@ res <- compute_per_gen_rates(
 
 # Step 2: 画 conversion efficiency 柱状图(默认 eff_per_gen)
 plot_dt = res$per_rep
-plot_dt = res$terminal_per_rep  # 只看
+#plot_dt = res$terminal_per_rep  # 只看
 plot_dt$programs = factor(plot_dt$programs,
                               levels = c("5_generation", "10_generation",
                                          "15_generation", "20_generation"),
@@ -1295,26 +1304,12 @@ plot_dt$app = factor(plot_dt$app,
                                      "ocs45", "ocs65", "ocs90", "ran"),
                           labels = c("LAGM", "TC", "GOCS", "GOCS25",
                                      "GOCS45", "GOCS65", "GOCS90", "Random"))
-
-plot_dt$app = factor(plot_dt$app,
-                          levels = c("rl2_5m", "rl2_10m", "rl2_3","rl2_5","rl2","tc","ocs25",
-                                     "ocs45", "ocs65", "ocs90", "ran"),
-                          labels = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "TC","GOCS25",
-                                     "GOCS45", "GOCS65", "GOCS90", "Random"))
 plot_dt$dF = plot_dt$dF*100   # 转换成百分比
 
 
 y_var = "eff_per_gen"
 y_lab = "Conversion efficiency"
-plot_title = "Conversion efficiency across mating strategies and programs"
-
-y_var = "dG"
-y_lab = "Rate of genetic gain (ΔG)"
-plot_title = "Rate of genetic gain across mating strategies and programs"
-
-y_var = "dF"
-y_lab = "Rate of inbreeding (ΔF)"
-plot_title = "Rate of inbreeding across mating strategies and programs"
+plot_title = "Conversion efficiency across mating strategies and horizons"
 out <- plot_per_rep_bar_with_cld(
     plot_dt,
     y_var      = y_var,
@@ -1335,26 +1330,172 @@ out <- plot_per_rep_bar_with_cld(
     y_lab       = y_lab,
     plot_title  = plot_title
 )
-P = out$plot + theme(strip.background = element_rect(fill = NA, color = NA)) +
+P2 = out$plot + theme(strip.background = element_rect(fill = NA, color = NA)) +
+  coord_cartesian(ylim = c(0, 55))   # 修改 y 轴范围（不会裁掉数据/误差棒）
+#   coord_cartesian(ylim = c(0, 1.2))   # 修改 y 轴范围（不会裁掉数据/误差棒）
+#   coord_cartesian(ylim = c(0,10))   # 修改 y 轴范围（不会裁掉数据/误差棒）
+P2
+
+y_var = "dG"
+y_lab = "Rate of genetic gain (ΔG)"
+plot_title = "Rate of genetic gain across mating strategies and horizons"
+out <- plot_per_rep_bar_with_cld(
+    plot_dt,
+    y_var      = y_var,
+    app_order  = c("LAGM", "TC", "GOCS", "GOCS25", "GOCS45", "GOCS65", "GOCS90", "Random"),
+    colors     = c(LAGM   = "#1f3b73",  TC   = "#d62728",
+                   GOCS  = "#2ca02c",  GOCS25= "#1F77B4",
+                   GOCS45 = "#9467bd",  GOCS65= "#f4a582",
+                   GOCS90 = "#8b0000",  Random  = "#999999"),
+    # app_order = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "OCS25",
+    #                                  "OCS45", "OCS65", "OCS90", "Random"),           
+    # colors     = c(LAGM1   = "#1f3b73",  LAGM2   = "#d62728",
+    #                LAGM3  = "#2ca02c",  GOCS25= "#1F77B4",
+    #                GOCS45 = "#9467bd",  GOCS65= "#f4a582",
+    #                OCS90 = "#8b0000",  Random  = "#999999",
+    #                LAGM5 = "#79465e", LAGM7 = "#930c83"),
+    tukey_alpha = 0.05,
+    errorbar    = "se",
+    y_lab       = y_lab,
+    plot_title  = plot_title
+)
+P3 = out$plot + theme(strip.background = element_rect(fill = NA, color = NA)) +
+#   coord_cartesian(ylim = c(0, 55))   # 修改 y 轴范围（不会裁掉数据/误差棒）
+  coord_cartesian(ylim = c(0, 1.2))   # 修改 y 轴范围（不会裁掉数据/误差棒）
+#   coord_cartesian(ylim = c(0,10))   # 修改 y 轴范围（不会裁掉数据/误差棒）
+P3
+
+y_var = "dF"
+y_lab = "Rate of inbreeding (ΔF)"
+plot_title = "Rate of inbreeding across mating strategies and horizons"
+out <- plot_per_rep_bar_with_cld(
+    plot_dt,
+    y_var      = y_var,
+    app_order  = c("LAGM", "TC", "GOCS", "GOCS25", "GOCS45", "GOCS65", "GOCS90", "Random"),
+    colors     = c(LAGM   = "#1f3b73",  TC   = "#d62728",
+                   GOCS  = "#2ca02c",  GOCS25= "#1F77B4",
+                   GOCS45 = "#9467bd",  GOCS65= "#f4a582",
+                   GOCS90 = "#8b0000",  Random  = "#999999"),
+    # app_order = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "OCS25",
+    #                                  "OCS45", "OCS65", "OCS90", "Random"),           
+    # colors     = c(LAGM1   = "#1f3b73",  LAGM2   = "#d62728",
+    #                LAGM3  = "#2ca02c",  GOCS25= "#1F77B4",
+    #                GOCS45 = "#9467bd",  GOCS65= "#f4a582",
+    #                OCS90 = "#8b0000",  Random  = "#999999",
+    #                LAGM5 = "#79465e", LAGM7 = "#930c83"),
+    tukey_alpha = 0.05,
+    errorbar    = "se",
+    y_lab       = y_lab,
+    plot_title  = plot_title
+)
+P4 = out$plot + theme(strip.background = element_rect(fill = NA, color = NA)) +
 #   coord_cartesian(ylim = c(0, 55))   # 修改 y 轴范围（不会裁掉数据/误差棒）
 #   coord_cartesian(ylim = c(0, 1.2))   # 修改 y 轴范围（不会裁掉数据/误差棒）
   coord_cartesian(ylim = c(0,10))   # 修改 y 轴范围（不会裁掉数据/误差棒）
-P
+P4
 
 
-ggsave("Figure 2.pdf", P,
+ggsave("Figure 2.pdf", P2,
        width = 15, height = 8, dpi = 300,
        device = cairo_pdf)
-ggsave("Figure 3.pdf", P,
+ggsave("Figure 3.pdf", P3,
        width = 15, height = 8, dpi = 300,
        device = cairo_pdf)
-ggsave("Figure 4.pdf", P ,
+ggsave("Figure 4.pdf", P4 ,
         width = 15, height = 8, dpi = 300,
         device = cairo_pdf)
 
 
+# -------------------------------------------------------------------------
+# 1. 核心构建函数：提取原图数据，格子内大号加粗排布，底端完整倾斜
+# -------------------------------------------------------------------------
+build_heatmap_matrix <- function(p_obj, title_text, low_col, high_col, show_y = TRUE) {
+  dt <- copy(p_obj$data)
+  
+  # 格子内部文本：第一行大号数值，第二行显著性字母，纯平居中
+  dt[, cell_text := paste0(formatC(mean_y, digits = 2, format = "f"), "\n(", letter, ")")]
+  
+  # 确保横坐标按顺序保留完整名称（5-generation, 10-generation...）
+  if (!is.factor(dt$programs)) {
+    dt[, programs := factor(programs, levels = c("5-generation", "10-generation", "15-generation", "20-generation"))]
+  }
+  
+  # 纵坐标策略因子倒序，确保首行从顶部的 LAGM 开始
+  dt[, app := factor(app, levels = rev(levels(dt$app)))]
+  
+  p <- ggplot(dt, aes(x = programs, y = app, fill = mean_y)) +
+    # 纯白粗网格线分割单元格，提升对比度
+    geom_tile(color = "white", linewidth = 1.2) + 
+    # 核心数值：大号 (size = 3.3，约 9.5 pt)、加粗 (bold)、纯黑紧凑对齐
+    geom_text(aes(label = cell_text), 
+              size = 3.3, 
+              fontface = "bold", 
+              lineheight = 0.85, 
+              color = "black") +
+    scale_fill_gradient(low = low_col, high = high_col) +
+    labs(title = title_text, x = NULL, y = NULL) +
+    theme_minimal(base_size = 9) +
+    theme(
+      plot.title      = element_text(size = 11, face = "bold", hjust = 0.5, margin = margin(b = 6)),
+      panel.grid      = element_blank(),
+      legend.position = "none", # 格内已有确切值与字母，无需图例
+      # 底端 X 轴完整全称 45 度倾斜，清晰加粗
+      axis.text.x     = element_text(angle = 45, hjust = 1, vjust = 1, size = 9, face = "bold", color = "black")
+    )
+  
+  if (show_y) {
+    p <- p + theme(axis.text.y = element_text(size = 9.5, face = "bold", color = "black"))
+  } else {
+    p <- p + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
+  }
+  
+  return(p)
+}
+
+# -------------------------------------------------------------------------
+# 2. 生成 a、b、c 三个维度的热图（清爽辨识色阶，绝不干扰黑字读取）
+# -------------------------------------------------------------------------
+
+# Panel a: 转化效率（低饱和度天蓝渐变，左侧保留策略名）
+hm_a <- build_heatmap_matrix(P2, "a) Conversion efficiency", 
+                             low_col = "#ebf3fb", high_col = "#6baed6", show_y = TRUE)
+
+# Panel b: 遗传进展速率 ΔG（暖黄橙渐变，隐藏 Y 轴）
+hm_b <- build_heatmap_matrix(P3, "b) Rate of genetic gain", 
+                             low_col = "#fff5eb", high_col = "#fdbb84", show_y = FALSE)
+
+# Panel c: 近交速率 ΔF（浅紫渐变，隐藏 Y 轴）
+hm_c <- build_heatmap_matrix(P4, "c) Rate of inbreeding", 
+                             low_col = "#f2f0f7", high_col = "#bcbddc", show_y = FALSE)
+
+# -------------------------------------------------------------------------
+# 3. 横向并列拼接并微调左侧文字占比
+# -------------------------------------------------------------------------
+combined_heatmap <- (hm_a | hm_b | hm_c) + 
+  plot_layout(widths = c(1.28, 1, 1)) & 
+  theme(plot.margin = margin(t = 4, r = 2, b = 4, l = 2))
+
+# -------------------------------------------------------------------------
+# 4. 导出为符合 Heredity 标准规格的矢量 PDF
+# -------------------------------------------------------------------------
+ggsave("Figure 2 final.pdf", combined_heatmap,
+       width = 180, height = 160, units = "mm",
+       dpi = 300, device = cairo_pdf)
 
 
+
+
+plot_dt = res$per_rep
+#plot_dt = res$terminal_per_rep  # 只看
+plot_dt$programs = factor(plot_dt$programs,
+                              levels = c("5_generation", "10_generation",
+                                         "15_generation", "20_generation"),
+                              labels = c("5-generation", "10-generation", "15-generation", "20-generation"))                   
+plot_dt$app = factor(plot_dt$app,
+                          levels = c("rl2_5m", "rl2_10m", "rl2_3","rl2_5","rl2","tc","ocs25",
+                                     "ocs45", "ocs65", "ocs90", "ran"),
+                          labels = c("LAGM1", "LAGM2", "LAGM3", "LAGM5", "LAGM7", "TC","GOCS25",
+                                     "GOCS45", "GOCS65", "GOCS90", "Random"))
 y_var = "dG"
 y_lab = "Genetic gain per generation (ΔG)"
 plot_title = "Rate of genetic gain for LAGM with fixed look-ahead windows within 20-generation horizon"
@@ -1476,46 +1617,116 @@ P8 = out$plot + theme(strip.background = element_rect(fill = NA, color = NA)) +
 P8
 
 
-P6_new <- P6 + labs(title = "a) Rate of genetic gain (ΔG)", y = NULL, x=NULL,subtitle = NULL)
-P7_new <- P7 + labs(title = "b) Rate of inbreeding (ΔF)", y = NULL, x=NULL,subtitle = NULL)
-P8_new <- P8 + labs(title = "c) Conversion efficiency", y = NULL, x=NULL,subtitle = NULL)
+# P6_new <- P6 + labs(title = "a) Rate of genetic gain (ΔG)", y = NULL, x=NULL,subtitle = NULL)
+# P7_new <- P7 + labs(title = "b) Rate of inbreeding (ΔF)", y = NULL, x=NULL,subtitle = NULL)
+# P8_new <- P8 + labs(title = "c) Conversion efficiency", y = NULL, x=NULL,subtitle = NULL)
 
-# 2. 定义“上面两张，下面一张居中”的布局
-design <- "
-  AABB
-  #CC#
-"
+# # 2. 定义“上面两张，下面一张居中”的布局
+# design <- "
+#   AABB
+#   #CC#
+# "
 
-# 3. 组合图片并收集图例
-# 修正：将 plot_title 改为 plot.title
-combined_plot <- P6_new + P7_new + P8_new + 
-  plot_layout(design = design, guides = "collect") & 
+# # 3. 组合图片并收集图例
+# # 修正：将 plot_title 改为 plot.title
+# combined_plot <- P6_new + P7_new + P8_new + 
+#   plot_layout(design = design, guides = "collect") & 
+#   theme(
+#     legend.position = "bottom",
+#     # 统一设置子标题的样式
+#     plot.title = element_text(size = 12, face = "bold", hjust = 0, margin = margin(b = 6)),
+#     # 彻底隐去 x 轴和 y 轴的标题文本空间
+#     axis.title.x = element_blank(),
+#     axis.title.y = element_blank(),
+#     # 【核心防御】如果“20-generation”是分面(facet)带来的，下面这两行可以强行让它消失
+#     strip.text = element_blank(),
+#     strip.background = element_blank(),
+#     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+#   )
+
+# # 4. 添加统一的全局大标题（同样使用正确的 plot.title）
+# combined_plot <- combined_plot + 
+#   plot_annotation(
+#     title = "LAGM with fixed look-ahead windows within 20-generation horizon", 
+#     theme = theme(
+#       # margin(b = 10) 可以给大标题下方留出空隙，防止和下面的子图挨得太近
+#       plot.title = element_text(hjust = 0.5, size = 16, face = "bold", margin = margin(b = 10))
+#     )
+#   )
+
+# ggsave("Figure 6.pdf", combined_plot ,
+#         width = 15, height = 8, dpi = 300,
+#         device = cairo_pdf)
+
+# 1. 单独定制三个子图
+# 图 a：Conversion efficiency（去掉 X 轴文本和刻度线）
+P8_new <- P8 + 
+  labs(title = "a) Conversion efficiency", y = NULL, x = NULL, subtitle = NULL, caption = NULL) +
   theme(
-    legend.position = "bottom",
-    # 统一设置子标题的样式
-    plot.title = element_text(size = 12, face = "bold", hjust = 0, margin = margin(b = 6)),
-    # 彻底隐去 x 轴和 y 轴的标题文本空间
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank(),
     axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    # 【核心防御】如果“20-generation”是分面(facet)带来的，下面这两行可以强行让它消失
-    strip.text = element_blank(),
-    strip.background = element_blank(),
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+    plot.margin  = margin(t = 2, r = 5, b = 2, l = 5)
   )
 
-# 4. 添加统一的全局大标题（同样使用正确的 plot.title）
+# 图 b：Rate of genetic gain (ΔG)（去掉 X 轴文本和刻度线）
+P6_new <- P6 + 
+  labs(title = "b) Rate of genetic gain", y = NULL, x = NULL, subtitle = NULL, caption = NULL) +
+  theme(
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.x = element_blank(),
+    plot.margin  = margin(t = 2, r = 5, b = 2, l = 5)
+  )
+
+# 图 c：Rate of inbreeding (ΔF)（底图：单独保留 45° 倾斜标签与刻度线）
+# 针对 P7 (Rate of inbreeding) 单独抬高 Y 轴上限，防止字母切顶
+P7_new <- P7 + 
+  # 将顶部留白比例从原来的 0.18 扩大到 0.28，或者直接写 ylim = c(0, 8.8)
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.35)),
+    breaks = seq(0, 8, by = 2) # 顺手让 Y 轴刻度更规整清爽
+  ) +
+  labs(title = "c) Rate of inbreeding", y = NULL, x = NULL, subtitle = NULL, caption = NULL) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x  = element_text(angle = 45, hjust = 1, vjust = 1, size = 8.5),
+    plot.margin  = margin(t = 2, r = 5, b = 4, l = 5)
+  )
+
+# 2. 垂直堆叠布局
+design <- "
+  AAAA
+  BBBB
+  CCCC
+"
+
+# 3. 组合并统一主题
+# 注意：& theme() 内部绝对不能出现 axis.text.x，否则会把上面单设的 blank 全部覆盖掉！
+combined_plot <- P8_new + P6_new + P7_new + 
+  plot_layout(design = design, guides = "collect") & 
+  theme(
+    legend.position   = "bottom",
+    plot.title        = element_text(size = 11, face = "bold", hjust = 0, margin = margin(b = 4)),
+    plot.caption      = element_blank(),
+    axis.title.x      = element_blank(),
+    axis.title.y      = element_blank(),
+    strip.text        = element_blank(),
+    strip.background  = element_blank()
+  )
+
+# 4. 全局大标题
 combined_plot <- combined_plot + 
   plot_annotation(
     title = "LAGM with fixed look-ahead windows within 20-generation horizon", 
     theme = theme(
-      # margin(b = 10) 可以给大标题下方留出空隙，防止和下面的子图挨得太近
-      plot.title = element_text(hjust = 0.5, size = 16, face = "bold", margin = margin(b = 10))
+      plot.title = element_text(hjust = 0.5, size = 13, face = "bold", margin = margin(b = 6))
     )
   )
 
-ggsave("Figure 6.pdf", combined_plot ,
-        width = 15, height = 8, dpi = 300,
-        device = cairo_pdf)
+ggsave("Figure 3 final.pdf", combined_plot,
+       width = 180, height = 160, units = "mm",
+       dpi = 300, device = cairo_pdf)
 
 
 
