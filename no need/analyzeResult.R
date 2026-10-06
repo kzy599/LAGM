@@ -1483,6 +1483,148 @@ ggsave("Figure 2 final.pdf", combined_heatmap,
        dpi = 300, device = cairo_pdf)
 
 
+# =========================================================================
+# 1. 颜色方案定义（严格与前置代码保持一致）
+# =========================================================================
+colors_map <- c(
+  LAGM   = "#1f3b73",  
+  TC     = "#d62728",
+  GOCS   = "#2ca02c",  
+  GOCS25 = "#1F77B4",
+  GOCS45 = "#9467bd",  
+  GOCS65 = "#f4a582",
+  GOCS90 = "#8b0000",  
+  Random = "#999999"
+)
+
+# =========================================================================
+# 2. 核心绘图函数：去方框无框分面水平条形图
+# =========================================================================
+build_horizontal_panel <- function(p_obj, tag_letter, x_label, x_max, x_breaks, is_first = FALSE) {
+  dt <- copy(p_obj$data)
+  
+  # Y 轴策略因子顺序反转（确保由上至下为 LAGM -> Random）
+  orig_levels <- levels(dt$app)
+  if (is.null(orig_levels)) orig_levels <- unique(as.character(dt$app))
+  dt[, app := factor(app, levels = rev(orig_levels))]
+  
+  # 世代顺序固定
+  if (!is.factor(dt$programs)) {
+    dt[, programs := factor(programs, levels = c("5-generation", "10-generation", "15-generation", "20-generation"))]
+  }
+  
+  # 柱右侧加粗标注文本：字母 + 均值
+  dt[, label_text := paste0(letter, " ", formatC(mean_y, digits = 2, format = "f"))]
+  
+  p <- ggplot(dt, aes(y = app, x = mean_y, fill = app)) +
+    # 水平柱
+    geom_col(width = 0.68, color = "black", linewidth = 0.22) +
+    # 误差棒 (水平 xmin / xmax)
+    geom_errorbar(aes(xmin = mean_y - err, xmax = mean_y + err),
+                  width = 0.28, linewidth = 0.28) +
+    # 标注文本（水平 0°，字号 2.4 对应约 6.8 pt，加粗防遮挡）
+    geom_text(aes(x = mean_y + err, label = label_text),
+              hjust = -0.15, size = 2.4, fontface = "bold", color = "black") +
+    scale_fill_manual(values = colors_map) +
+    facet_wrap(vars(programs), ncol = 1, scales = "fixed") +
+    # 坐标范围与防裁切设置
+    scale_x_continuous(limits = c(0, x_max), breaks = x_breaks, expand = expansion(mult = c(0, 0.02))) +
+    coord_cartesian(clip = "off") +
+    labs(
+      title = tag_letter, # 顶部纯净序号：a, b, c
+      x     = x_label,    # 底部物理量纲名称
+      y     = NULL
+    ) +
+    theme_bw(base_size = 9) +
+    theme(
+      # 顶部序号 a, b, c
+      plot.title         = element_text(size = 11, face = "bold", hjust = 0, margin = margin(b = 2)),
+      # 底部 X 轴物理量标题
+      axis.title.x       = element_text(size = 8.5, face = "bold", color = "black", margin = margin(t = 4, b = 1)),
+      axis.text.x        = element_text(size = 7.5, color = "black"),
+      
+      # 彻底去掉育种周期的分面方框与底色
+      strip.background   = element_blank(),
+      strip.text         = element_text(size = 8.5, face = "bold", color = "black", margin = margin(t = 2, b = 2)),
+      
+      # 适度增加上下世代之间的垂直间距，维持清晰的分组边界
+      panel.spacing.y    = unit(3, "mm"),
+      panel.grid.minor   = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position    = "none" # 移除冗余图例
+    )
+  
+  if (is_first) {
+    # 第一列（Panel a）：保留左侧策略标签与刻度线
+    p <- p + theme(
+      axis.text.y  = element_text(size = 8, face = "bold", color = "black"),
+      axis.ticks.y = element_line(color = "black", linewidth = 0.3),
+      plot.margin  = margin(t = 2, r = 3, b = 2, l = 4)
+    )
+  } else {
+    # 后两列（Panel b & c）：隐藏 Y 轴文字与刻度
+    p <- p + theme(
+      axis.text.y  = element_blank(),
+      axis.ticks.y = element_blank(),
+      plot.margin  = margin(t = 2, r = 3, b = 2, l = 2)
+    )
+  }
+  
+  return(p)
+}
+
+# =========================================================================
+# 3. 分别构建三列子图
+# =========================================================================
+# Panel a: 转化效率
+p_col_a <- build_horizontal_panel(
+  p_obj      = P2, 
+  tag_letter = "a", 
+  x_label    = "Conversion efficiency (ΔG / ΔF)", 
+  x_max      = 62, 
+  x_breaks   = c(0, 20, 40, 60), 
+  is_first   = TRUE
+)
+
+# Panel b: 遗传进展速率
+p_col_b <- build_horizontal_panel(
+  p_obj      = P3, 
+  tag_letter = "b", 
+  x_label    = "Rate of genetic gain (ΔG)", 
+  x_max      = 1.35, 
+  x_breaks   = c(0.0, 0.4, 0.8, 1.2), 
+  is_first   = FALSE
+)
+
+# Panel c: 近交速率（带 % 单位）
+p_col_c <- build_horizontal_panel(
+  p_obj      = P4, 
+  tag_letter = "c", 
+  x_label    = "Rate of inbreeding (ΔF, %)", 
+  x_max      = 11.5, 
+  x_breaks   = c(0, 5, 10), 
+  is_first   = FALSE
+)
+
+# =========================================================================
+# 4. 水平拼接与对齐微调
+# =========================================================================
+# 给第一列预留略宽的比例 (1.15 : 1 : 1)，确保三列实际柱状绘图区域物理宽度完全一致
+fig2_horizontal_final <- (p_col_a | p_col_b | p_col_c) + 
+  plot_layout(widths = c(1.15, 1, 1))
+
+# =========================================================================
+# 5. 导出标准出版级 PDF (180 x 160 mm)
+# =========================================================================
+ggsave(
+  filename = "Figure 2_horizontal_180x160.pdf",
+  plot     = fig2_horizontal_final,
+  width    = 180,
+  height   = 160,
+  units    = "mm",
+  dpi      = 300,
+  device   = if (capabilities("cairo")) cairo_pdf else "pdf"
+)
 
 
 plot_dt = res$per_rep
@@ -1727,6 +1869,104 @@ combined_plot <- combined_plot +
 ggsave("Figure 3 final.pdf", combined_plot,
        width = 180, height = 160, units = "mm",
        dpi = 300, device = cairo_pdf)
+
+
+
+
+# =========================================================================
+# 1. 单独定制三个子图（添加规范的物理量纲 Y 轴，去除顶部子标题）
+# =========================================================================
+
+# 图 a：Conversion efficiency (无量纲比值)
+P8_new <- P8 + 
+  labs(
+    title    = NULL, 
+    subtitle = NULL, 
+    caption  = NULL, 
+    x        = NULL, 
+    y        = "Conversion efficiency\n(ΔG / ΔF)" # 补全量纲与公式
+  ) +
+  theme(
+    axis.title.y = element_text(size = 9, face = "bold", color = "black"),
+    axis.text.y  = element_text(size = 8, color = "black"),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.x = element_blank(),
+    plot.margin  = margin(t = 2, r = 5, b = 2, l = 5)
+  )
+
+# 图 b：Rate of genetic gain (ΔG)
+P6_new <- P6 + 
+  labs(
+    title    = NULL, 
+    subtitle = NULL, 
+    caption  = NULL, 
+    x        = NULL, 
+    y        = "Rate of genetic gain\n(ΔG)"         # 补全量纲
+  ) +
+  theme(
+    axis.title.y = element_text(size = 9, face = "bold", color = "black"),
+    axis.text.y  = element_text(size = 8, color = "black"),
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.x = element_blank(),
+    plot.margin  = margin(t = 2, r = 5, b = 2, l = 5)
+  )
+
+# 图 c：Rate of inbreeding (ΔF, %) —— 重点标注百分号 %，规避 7.57 量纲误解
+P7_new <- P7 + 
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.35)),
+    breaks = seq(0, 8, by = 2)
+  ) +
+  labs(
+    title    = NULL, 
+    subtitle = NULL, 
+    caption  = NULL, 
+    x        = NULL, 
+    y        = "Rate of inbreeding\n(ΔF, %)"        # 重点加上百分号 %
+  ) +
+  theme(
+    axis.title.y = element_text(size = 9, face = "bold", color = "black"),
+    axis.text.y  = element_text(size = 8, color = "black"),
+    axis.title.x = element_blank(),
+    axis.text.x  = element_text(angle = 45, hjust = 1, vjust = 1, size = 8.5, color = "black"),
+    plot.margin  = margin(t = 2, r = 5, b = 4, l = 5)
+  )
+
+# =========================================================================
+# 2. 垂直拼接与统一主题设置
+# =========================================================================
+design <- "
+  A
+  B
+  C
+"
+
+# 组合三图：
+# 1. 彻底关闭图例 (legend.position = 'none')
+# 2. 删除了原代码中错误的 axis.title.y = element_blank()
+# 3. 利用 tag_levels = 'a' 自动在每个 panel 左上角打上规范加粗小标 a, b, c
+combined_plot <- (P8_new / P6_new / P7_new) + 
+  plot_layout(design = design) +
+  plot_annotation(tag_levels = 'a') & 
+  theme(
+    legend.position   = "none", # 彻底取消冗余图例
+    plot.tag          = element_text(size = 11, face = "bold"), # 左上角 a, b, c 标签样式
+    plot.caption      = element_blank(),
+    strip.text        = element_blank(),
+    strip.background  = element_blank(),
+    panel.grid.minor  = element_blank(),
+    panel.grid.major.x = element_blank() # 去除垂直网格线，版面更通透
+  )
+
+# =========================================================================
+# 3. 导出标准出版级 PDF (180 x 160 mm)
+# =========================================================================
+# 移除了底端图例和顶部大标题后，160 mm 高度下三排柱子非常舒展饱满
+ggsave("Figure 3_final_clean.pdf", combined_plot,
+       width = 180, height = 160, units = "mm",
+       dpi = 300, device = if (capabilities("cairo")) cairo_pdf else "pdf")
 
 
 
