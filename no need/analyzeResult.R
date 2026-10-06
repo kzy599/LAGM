@@ -1617,7 +1617,7 @@ fig2_horizontal_final <- (p_col_a | p_col_b | p_col_c) +
 # 5. 导出标准出版级 PDF (180 x 160 mm)
 # =========================================================================
 ggsave(
-  filename = "Figure 2_horizontal_180x160.pdf",
+  filename = "Figure 2_horizontal.pdf",
   plot     = fig2_horizontal_final,
   width    = 180,
   height   = 160,
