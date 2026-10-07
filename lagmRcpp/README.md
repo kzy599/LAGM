@@ -187,7 +187,11 @@ ranking reversed by Q. Writing `U = exp(J) = Gnorm * Dnorm^T`, epsilon
 0.005 and ΔQ=1 can compensate at most `1-exp(-0.005) ≈ 0.499%` loss of U.
 This is not a 0.5% change in gain, heterozygosity or inbreeding individually,
 nor a guarantee about SA's unknown global optimum. 0.005 is a conservative
-default, not a value rigorously derived from a fixed single-move scale.
+default, not a value rigorously derived from a fixed single-move scale. Moreover, 
+in a simulated breeding program, the `pop` model LAGM with `epsilon = 0.005` achieved 
+the highest conversion efficiency among all evaluated mating strategies 
+(including GOCS and the `pair` model LAGM), while maintaining adaptability 
+across breeding horizons and providing substantial advantages in inbreeding and coancestry control.
 
 ```r
 # Default joint pop search (all other required inputs as above)
